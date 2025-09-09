@@ -248,7 +248,7 @@ with gr.Blocks() as demo:
     gr.Markdown(get_supported_languages_display())
     with gr.Row():
         with gr.Column():
-            initial_lang = "fr"
+            initial_lang = "it"
             text = gr.Textbox(
                 value=default_text_for_ui(initial_lang),
                 label="Text to synthesize",
@@ -278,7 +278,7 @@ with gr.Blocks() as demo:
                 0.25, 2, step=.05, label="Exaggeration (Neutral = 0.5, extreme values can be unstable)", value=.5
             )
             cfg_weight = gr.Slider(
-                0.2, 1, step=.05, label="CFG/Pace", value=0.5
+                0.2, 1, step=.05, label="CFG/Pace", value=0.3
             )
 
             with gr.Accordion("More options", open=False):
