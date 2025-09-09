@@ -52,6 +52,8 @@ ENV HF_HOME=/huggingface
 # Verifica che NVCC sia disponibile
 #RUN nvcc --version
 COPY pyproject.toml /app/
+COPY README.md /app/
+COPY src /app/src
 
 RUN pip install -e .
 
