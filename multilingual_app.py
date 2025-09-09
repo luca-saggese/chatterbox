@@ -231,8 +231,8 @@ def generate_tts_audio(
     wav = current_model.generate(
         text_input,
         language_id=language_id,
-        min_p=0,
-        top_p=0,
+       # min_p=0,
+       # top_p=0,
         repetition_penalty=1,
         **generate_kwargs
     )
