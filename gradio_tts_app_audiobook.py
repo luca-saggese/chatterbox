@@ -188,6 +188,7 @@ def generate(model, text, audio_prompt_path, exaggeration, temperature, seed_num
         wav = model.generate(
             text,
             conds,
+            language_id="it",
             exaggeration=exaggeration,
             temperature=temperature,
             cfg_weight=cfgw,
@@ -7333,4 +7334,4 @@ if __name__ == "__main__":
     demo.queue(
         max_size=50,
         default_concurrency_limit=1,
-    ).launch(share=True)
+    ).launch(mcp_server=True, server_name="0.0.0.0", server_port=8080, share=True)
