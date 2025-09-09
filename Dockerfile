@@ -34,7 +34,7 @@ RUN apt-get update && apt-get install -y ninja-build \
  && pip install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cu124 \
  && pip install --no-build-isolation diso
 
-COPY . /app
+
 
 # Installa le dipendenze aggiuntive richieste
 #RUN pip install gradio==4.0.2 sentencepiece
@@ -51,8 +51,11 @@ ENV HF_HOME=/huggingface
 
 # Verifica che NVCC sia disponibile
 #RUN nvcc --version
+COPY pyproject.toml /app/
 
 RUN pip install -e .
+
+COPY . /app
 
 #RUN source patchtransformers.sh
 
