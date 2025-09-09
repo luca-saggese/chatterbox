@@ -233,7 +233,7 @@ def generate_tts_audio(
         language_id=language_id,
         min_p=0,
         top_p=0,
-        repetition_penalty=0,
+        repetition_penalty=1,
         **generate_kwargs
     )
     print("Audio generation complete.")
