@@ -57,6 +57,9 @@ COPY src /app/src
 
 RUN pip install -e .
 
+RUN pip install -r requirements.txt
+RUN pip install gradio
+
 COPY . /app
 
 #RUN source patchtransformers.sh
