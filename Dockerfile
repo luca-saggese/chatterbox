@@ -60,4 +60,4 @@ RUN pip install -e .
 EXPOSE 8080
 
 # Comando di default per avviare il server Gradio
-CMD ["python3", "gradio_tts_app.py", "--share", "--port", "8080"]
+CMD ["python3", "multilingual_app.py", "--share", "--port", "8080"]
