@@ -1,141 +1,368 @@
+# 🎧 Chatterbox Audiobook Generator
 
-<img width="1200" height="600" alt="Chatterbox-Multilingual" src="https://www.resemble.ai/wp-content/uploads/2025/09/Chatterbox-Multilingual-1.png" />
+**This is a work in progress. You can consider this a pre-launch repo at the moment, but if you find bugs, please put them in the issues area. Thank you.**
+**Transform your text into high-quality audiobooks with advanced TTS models, voice cloning, and professional volume normalization.**
 
-# Chatterbox TTS
+## 🚀 Quick Start
 
-[![Alt Text](https://img.shields.io/badge/listen-demo_samples-blue)](https://resemble-ai.github.io/chatterbox_demopage/)
-[![Alt Text](https://huggingface.co/datasets/huggingface/badges/resolve/main/open-in-hf-spaces-sm.svg)](https://huggingface.co/spaces/ResembleAI/Chatterbox)
-[![Alt Text](https://static-public.podonos.com/badges/insight-on-pdns-sm-dark.svg)](https://podonos.com/resembleai/chatterbox)
-[![Discord](https://img.shields.io/discord/1377773249798344776?label=join%20discord&logo=discord&style=flat)](https://discord.gg/rJq9cRJBJ6)
-
-_Made with ♥️ by <a href="https://resemble.ai" target="_blank"><img width="100" alt="resemble-logo-horizontal" src="https://github.com/user-attachments/assets/35cf756b-3506-4943-9c72-c05ddfa4e525" /></a>
-
-We're excited to introduce **Chatterbox Multilingual**, [Resemble AI's](https://resemble.ai) first production-grade open source TTS model supporting **23 languages** out of the box. Licensed under MIT, Chatterbox has been benchmarked against leading closed-source systems like ElevenLabs, and is consistently preferred in side-by-side evaluations.
-
-Whether you're working on memes, videos, games, or AI agents, Chatterbox brings your content to life across languages. It's also the first open source TTS model to support **emotion exaggeration control** with robust **multilingual zero-shot voice cloning**. Try the english only version now on our [English Hugging Face Gradio app.](https://huggingface.co/spaces/ResembleAI/Chatterbox). Or try the multilingual version on our [Multilingual Hugging Face Gradio app.](https://huggingface.co/spaces/ResembleAI/Chatterbox-Multilingual-TTS).
-
-If you like the model but need to scale or tune it for higher accuracy, check out our competitively priced TTS service (<a href="https://resemble.ai">link</a>). It delivers reliable performance with ultra-low latency of sub 200ms—ideal for production use in agents, applications, or interactive media.
-
-# Key Details
-- Multilingual, zero-shot TTS supporting 23 languages
-- SoTA zeroshot English TTS
-- 0.5B Llama backbone
-- Unique exaggeration/intensity control
-- Ultra-stable with alignment-informed inference
-- Trained on 0.5M hours of cleaned data
-- Watermarked outputs
-- Easy voice conversion script
-- [Outperforms ElevenLabs](https://podonos.com/resembleai/chatterbox)
-
-# Supported Languages 
-Arabic (ar) • Danish (da) • German (de) • Greek (el) • English (en) • Spanish (es) • Finnish (fi) • French (fr) • Hebrew (he) • Hindi (hi) • Italian (it) • Japanese (ja) • Korean (ko) • Malay (ms) • Dutch (nl) • Norwegian (no) • Polish (pl) • Portuguese (pt) • Russian (ru) • Swedish (sv) • Swahili (sw) • Turkish (tr) • Chinese (zh)
-# Tips
-- **General Use (TTS and Voice Agents):**
-  - Ensure that the reference clip matches the specified language tag. Otherwise, language transfer outputs may inherit the accent of the reference clip’s language. To mitigate this, set `cfg_weight` to `0`.
-  - The default settings (`exaggeration=0.5`, `cfg_weight=0.5`) work well for most prompts across all languages.
-  - If the reference speaker has a fast speaking style, lowering `cfg_weight` to around `0.3` can improve pacing.
-
-- **Expressive or Dramatic Speech:**
-  - Try lower `cfg_weight` values (e.g. `~0.3`) and increase `exaggeration` to around `0.7` or higher.
-  - Higher `exaggeration` tends to speed up speech; reducing `cfg_weight` helps compensate with slower, more deliberate pacing.
-
-
-# Installation
-```shell
-pip install chatterbox-tts
+### 1. Install Dependencies
+```bash
+./install-audiobook.bat
 ```
 
-Alternatively, you can install from source:
-```shell
-# conda create -yn chatterbox python=3.11
-# conda activate chatterbox
-
-git clone https://github.com/resemble-ai/chatterbox.git
-cd chatterbox
-pip install -e .
-```
-We developed and tested Chatterbox on Python 3.11 on Debian 11 OS; the versions of the dependencies are pinned in `pyproject.toml` to ensure consistency. You can modify the code or dependencies in this installation mode.
-
-# Usage
-```python
-import torchaudio as ta
-from chatterbox.tts import ChatterboxTTS
-from chatterbox.mtl_tts import ChatterboxMultilingualTTS
-
-# English example
-model = ChatterboxTTS.from_pretrained(device="cuda")
-
-text = "Ezreal and Jinx teamed up with Ahri, Yasuo, and Teemo to take down the enemy's Nexus in an epic late-game pentakill."
-wav = model.generate(text)
-ta.save("test-english.wav", wav, model.sr)
-
-# Multilingual examples
-multilingual_model = ChatterboxMultilingualTTS.from_pretrained(device=device)
-
-french_text = "Bonjour, comment ça va? Ceci est le modèle de synthèse vocale multilingue Chatterbox, il prend en charge 23 langues."
-wav_french = multilingual_model.generate(spanish_text, language_id="fr")
-ta.save("test-french.wav", wav_french, model.sr)
-
-chinese_text = "你好，今天天气真不错，希望你有一个愉快的周末。"
-wav_chinese = multilingual_model.generate(chinese_text, language_id="zh")
-ta.save("test-chinese.wav", wav_chinese, model.sr)
-
-# If you want to synthesize with a different voice, specify the audio prompt
-AUDIO_PROMPT_PATH = "YOUR_FILE.wav"
-wav = model.generate(text, audio_prompt_path=AUDIO_PROMPT_PATH)
-ta.save("test-2.wav", wav, model.sr)
-```
-See `example_tts.py` and `example_vc.py` for more examples.
-
-# Acknowledgements
-- [Cosyvoice](https://github.com/FunAudioLLM/CosyVoice)
-- [Real-Time-Voice-Cloning](https://github.com/CorentinJ/Real-Time-Voice-Cloning)
-- [HiFT-GAN](https://github.com/yl4579/HiFTNet)
-- [Llama 3](https://github.com/meta-llama/llama3)
-- [S3Tokenizer](https://github.com/xingchensong/S3Tokenizer)
-
-# Built-in PerTh Watermarking for Responsible AI
-
-Every audio file generated by Chatterbox includes [Resemble AI's Perth (Perceptual Threshold) Watermarker](https://github.com/resemble-ai/perth) - imperceptible neural watermarks that survive MP3 compression, audio editing, and common manipulations while maintaining nearly 100% detection accuracy.
-
-
-## Watermark extraction
-
-You can look for the watermark using the following script.
-
-```python
-import perth
-import librosa
-
-AUDIO_PATH = "YOUR_FILE.wav"
-
-# Load the watermarked audio
-watermarked_audio, sr = librosa.load(AUDIO_PATH, sr=None)
-
-# Initialize watermarker (same as used for embedding)
-watermarker = perth.PerthImplicitWatermarker()
-
-# Extract watermark
-watermark = watermarker.get_watermark(watermarked_audio, sample_rate=sr)
-print(f"Extracted watermark: {watermark}")
-# Output: 0.0 (no watermark) or 1.0 (watermarked)
+### 2. Launch the Application
+```bash
+./launch_audiobook.bat
 ```
 
+### 3. CUDA Issue Fix (If Needed)
+If you encounter CUDA assertion errors during generation, install the patched version:
+```bash
+# Activate your virtual environment first
+venv\Scripts\activate.bat
 
-# Official Discord
-
-👋 Join us on [Discord](https://discord.gg/rJq9cRJBJ6) and let's build something awesome together!
-
-# Citation
-If you find this model useful, please consider citing.
+# Install the CUDA-fixed version
+pip install --force-reinstall --no-cache-dir "chatterbox-tts @ git+https://github.com/fakerybakery/better-chatterbox@fix-cuda-issue"
 ```
-@misc{chatterboxtts2025,
-  author       = {{Resemble AI}},
-  title        = {{Chatterbox-TTS}},
-  year         = {2025},
-  howpublished = {\url{https://github.com/resemble-ai/chatterbox}},
-  note         = {GitHub repository}
-}
+
+The web interface will open automatically in your browser at `http://localhost:7860`
+
+---
+
+## ✨ Features
+
+### 📚 **Audiobook Creation**
+- **Single Voice**: Generate entire audiobooks with one consistent voice
+- **Multi-Voice**: Create dynamic audiobooks with multiple characters
+- **Custom Voices**: Clone voices from audio samples for personalized narration
+- **Professional Volume Normalization**: Ensure consistent audio levels across all voices
+- **📋 Text Queuing System** ⭐ *NEW*: Upload books in any size chapters and generate continuously
+- **🔄 Chunk-Based Processing** ⭐ *NEW*: Improved reliability for longer text generations
+
+### 🎵 **Audio Processing**
+- **Smart Cleanup**: Remove unwanted silence and audio artifacts
+- **Volume Normalization**: Professional-grade volume balancing for all voices
+- **Real-time Audio Analysis**: Live volume level monitoring and feedback
+- **Preview System**: Test settings before applying to entire projects
+- **Batch Processing**: Process multiple projects efficiently
+- **Quality Control**: Advanced audio optimization tools
+- **🎯 Enhanced Audio Quality** ⭐ *NEW*: Improved P-top and minimum P parameters for better voice generation
+
+### 🎭 **Voice Management**
+- **Voice Library**: Organize and manage your voice collection
+- **Voice Cloning**: Create custom voices from audio samples
+- **Volume Settings**: Configure target volume levels for each voice
+- **Professional Presets**: Industry-standard volume levels (audiobook, podcast, broadcast)
+- **Character Assignment**: Map specific voices to story characters
+
+### 📊 **Volume Normalization System** ⭐ *NEW*
+- **Professional Standards**: Audiobook (-18 dB), Podcast (-16 dB), Broadcast (-23 dB) presets
+- **Consistent Character Voices**: All characters maintain the same volume level
+- **Real-time Analysis**: Color-coded volume status with RMS and peak level display
+- **Retroactive Normalization**: Apply volume settings to existing voice projects
+- **Multi-Voice Support**: Batch normalize all voices in multi-character audiobooks
+- **Soft Limiting**: Intelligent audio limiting to prevent distortion
+
+### 📖 **Text Processing**
+- **Chapter Support**: Automatic chapter detection and organization
+- **Multi-Voice Parsing**: Parse character dialogue automatically
+- **Text Validation**: Ensure proper formatting before generation
+- **📋 Queue Management** ⭐ *NEW*: Batch process multiple text files sequentially
+- **🔇 Return Pause System** ⭐ *NEW*: Automatic pause insertion based on line breaks for natural speech flow
+
+---
+
+## 🎭 Custom Audiobook Processing Pipeline ⭐ *NEW*
+
+Our advanced text processing pipeline transforms your written content into natural-sounding audiobooks with intelligent pause placement and character flow management.
+
+### 🔇 **Return Pause System**
+
+**Automatic pause insertion based on your text formatting** - Every line break (`\n`) in your text automatically adds a 0.1-second pause to the generated audio, creating natural speech rhythms without manual intervention.
+
+#### **How It Works**
+- **Line Break Detection**: System automatically counts all line breaks in your text
+- **Pause Calculation**: Each return adds exactly 0.1 seconds of silence
+- **Accumulative Pauses**: Multiple consecutive line breaks create longer pauses
+- **Universal Support**: Works with single-voice, multi-voice, and batch processing
+
+#### **Example Text Formatting**
 ```
-# Disclaimer
-Don't use this model to do bad things. Prompts are sourced from freely available data on the internet.
+[Narrator] The sun was setting over the hills.
+
+[Character1] "We need to find shelter soon."
+
+[Character2] "I see a cave up ahead.
+Let's hurry before it gets dark."
+
+
+[Narrator] They rushed toward the cave, hearts pounding.
+```
+**Result**: Natural pauses between dialogue, emphasis pauses for dramatic effect, and smooth character transitions.
+
+### 📝 **Text Formatting Best Practices**
+
+#### **🎭 Multi-Voice Dialogue Structure**
+```
+[Character Name] Dialogue content here.
+
+[Another Character] Response content here.
+Multiple lines can be used for the same character.
+
+[Narrator] Descriptive text and scene setting.
+```
+
+#### **🎪 Natural Flow Techniques**
+- **Paragraph Breaks**: Use double line breaks for scene transitions
+- **Emphasis Pauses**: Add extra returns before important revelations
+- **Character Separation**: Single returns between different speakers
+- **Breathing Room**: Natural pauses for complex concepts or emotional moments
+
+#### **📖 Single Voice Formatting**
+```
+Chapter content flows naturally here.
+
+New paragraphs create natural pauses.
+
+
+Extended pauses can emphasize dramatic moments.
+
+Regular text continues with normal pacing.
+```
+
+### 🔄 **Processing Pipeline Features**
+
+#### **🧠 Intelligent Text Analysis**
+- **Line Break Preservation**: Maintains your formatting intentions throughout processing
+- **Character Assignment**: Automatically maps voice tags to selected voice profiles
+- **Chunk Optimization**: Breaks long texts into optimal segments while preserving pause timing
+- **Error Recovery**: Validates text and provides helpful formatting suggestions
+
+#### **⚡ Real-Time Processing**
+- **Live Feedback**: Console output shows exactly how many pauses are being added
+- **Debug Information**: Detailed logging of pause detection and application
+- **Progress Tracking**: Monitor pause processing alongside audio generation
+- **Quality Assurance**: Automatic validation of pause placement
+
+#### **🎚️ Professional Output**
+- **Seamless Integration**: Pauses blend naturally with generated speech
+- **Volume Consistency**: Silence segments match the audio output specifications
+- **Format Compatibility**: Works with all supported audio formats and quality settings
+- **Project Preservation**: Pause information saved in project metadata for regeneration
+
+### 💡 **Pro Tips for Better Audiobooks**
+
+#### **🎯 Dialogue Formatting**
+- **Character Consistency**: Always use the same character name format `[Name]`
+- **Natural Breaks**: Place returns where a human reader would naturally pause
+- **Scene Transitions**: Use multiple returns (2-3) for major scene changes
+- **Emotional Beats**: Add single returns before/after emotional dialogue
+
+#### **📚 Chapter Structure**
+```
+Chapter 1: The Beginning
+
+Opening paragraph with scene setting.
+
+"Character dialogue with natural flow."
+
+Descriptive narrative continues.
+
+
+Major scene transition with extended pause.
+
+New section begins here.
+```
+
+#### **🎪 Advanced Techniques**
+- **Cliffhangers**: Use extended pauses before revealing crucial information
+- **Action Sequences**: Shorter, punchy sentences with minimal pauses for intensity
+- **Contemplative Moments**: Longer pauses for reflection and character development
+- **Comedic Timing**: Strategic pauses before punchlines or comedic reveals
+
+### 🔍 **Debug Output Examples**
+
+When generating your audiobook, watch for these helpful console messages:
+```
+🔇 Detected 15 line breaks → 1.5s total pause time
+🔇 Line breaks detected in [Character1]: +0.3s pause (from 3 returns)
+🔇 Chunk 2 (Narrator): Added 0.2s pause after speech
+```
+
+This real-time feedback helps you understand exactly how your formatting translates to audio timing.
+
+---
+
+## 🆕 Recent Improvements
+
+### 🎯 **Audio Quality Enhancements**
+We've significantly improved audio generation quality by optimizing the underlying TTS parameters:
+
+- **Enhanced P-top and Minimum P Settings**: Fine-tuned probability parameters for more natural speech patterns
+- **Reduced Audio Artifacts**: Better handling of pronunciation and intonation
+- **Improved Voice Consistency**: More stable voice characteristics across long generations
+- **Better Pronunciation**: Enhanced handling of complex words and names
+
+**📝 Note for Existing Users**: 
+- Older voice profiles will continue to work as before
+- To take advantage of the new audio quality improvements, consider re-creating voice profiles
+- Existing projects remain fully compatible
+
+### 📋 **Text Queuing System**
+Perfect for processing large books or multiple chapters:
+
+- **Batch Upload**: Upload multiple text files of any size
+- **Sequential Processing**: Automatically processes files one after another
+- **Progress Tracking**: Monitor generation progress across all queued items
+- **Flexible Chapter Sizes**: No restrictions on individual file length
+- **Unattended Generation**: Set up large projects and let them run automatically
+
+### 🔄 **Chunk-Based TTS System**
+Enhanced the core text-to-speech engine for better reliability:
+
+- **Background Chunking**: Automatically splits long texts into optimal chunks
+- **Memory Management**: Better handling of large text inputs
+- **Error Recovery**: Improved resilience during long generation sessions
+- **Consistent Quality**: Maintains voice quality across chunk boundaries
+- **Progress Feedback**: Real-time updates on generation progress
+
+---
+
+## 🎚️ Volume Normalization Guide
+
+### **Individual Voice Setup**
+1. Go to **Voice Library** tab
+2. Upload your voice sample and configure settings
+3. Set target volume level (default: -18 dB for audiobooks)
+4. Choose from professional presets or use custom levels
+5. Save voice profile with volume settings
+
+### **Multi-Voice Projects**
+1. Navigate to **Multi-Voice Audiobook Creation** tab
+2. Enable volume normalization for all voices
+3. Set target level for consistent character voices
+4. All characters will be automatically normalized during generation
+
+### **Text Queuing Workflow** ⭐ *NEW*
+1. Go to **Production Studio** tab
+2. Select "Batch Processing" mode
+3. Upload multiple text files (chapters, sections, etc.)
+4. Choose your voice and settings
+5. Start batch processing - files will generate sequentially
+6. Monitor progress and download completed audiobooks
+
+### **Professional Standards**
+- **📖 Audiobook Standard**: -18 dB RMS (recommended for most audiobooks)
+- **🎙️ Podcast Standard**: -16 dB RMS (for podcast-style content)
+- **🔇 Quiet/Comfortable**: -20 dB RMS (for quiet listening environments)
+- **🔊 Loud/Energetic**: -14 dB RMS (for dynamic, energetic content)
+- **📺 Broadcast Standard**: -23 dB RMS (for broadcast television standards)
+
+---
+
+## 📁 Project Structure
+
+```
+📦 Your Audiobook Projects
+├── 🎤 speakers/           # Voice library and samples
+├── 📚 audiobook_projects/ # Generated audiobooks
+├── 🔧 src/audiobook/      # Core processing modules
+└── 📄 Generated files...  # Audio chunks and final outputs
+```
+
+---
+
+## 🎯 Workflow
+
+1. **📝 Prepare Text**: Format your story with proper chapter breaks and strategic line breaks for natural pauses
+2. **🎤 Select Voices**: Choose or clone voices for your characters  
+3. **🎚️ Configure Volume**: Set professional volume levels and normalization
+4. **⚙️ Configure Settings**: Adjust quality, speed, and processing options
+5. **🎧 Generate Audio**: Create your audiobook with advanced TTS and automatic pause insertion
+6. **🧹 Clean & Optimize**: Use smart cleanup tools for perfect audio
+7. **📦 Export**: Get your finished audiobook ready for distribution
+
+### 🎭 **Enhanced Multi-Voice Workflow**
+1. **📝 Format Dialogue**: Use `[Character]` tags and strategic line breaks for natural flow
+2. **🔇 Add Return Pauses**: Place line breaks where you want natural speech pauses (0.1s each)
+3. **🎤 Assign Voices**: Map each character to their voice profile
+4. **⚡ Process with Intelligence**: Watch console output for pause detection feedback
+5. **🎧 Review & Adjust**: Listen to generated audio and refine formatting if needed
+
+### 📋 **Batch Processing Workflow** ⭐ *NEW*
+1. **📚 Organize Chapters**: Split your book into individual text files
+2. **📋 Queue Setup**: Upload all files to the batch processing system
+3. **🎤 Voice Selection**: Choose voice and configure settings once
+4. **🔄 Automated Generation**: Let the system process all files sequentially
+5. **📊 Monitor Progress**: Track completion status in real-time
+6. **📦 Collect Results**: Download all generated audiobook chapters
+
+---
+
+## 🛠️ Technical Requirements
+
+- **Python 3.8+**
+- **CUDA GPU** (recommended for faster processing)
+- **8GB+ RAM** (16GB recommended for large projects)
+- **Modern web browser** for the interface
+
+### 🔧 **CUDA Support**
+- CUDA compatibility issues have been resolved with updated dependencies
+- GPU acceleration is now stable for extended generation sessions
+- Fallback to CPU processing available if CUDA issues occur
+- **If you encounter CUDA assertion errors**: Use the patched version from the installation instructions above
+- The fix addresses PyTorch indexing issues that could cause crashes during audio generation
+
+---
+
+## ⚠️ Known Issues & Compatibility
+
+### **Multi-Voice Generation**
+- Short sentences or sections may occasionally cause issues during multi-voice generation
+- This is a limitation of the underlying TTS models rather than the implementation
+- **Workaround**: Use longer, more detailed sentences for better stability
+- Single-voice generation is not affected by this issue
+
+### **Voice Profile Compatibility**
+- **Existing Voices**: All older voice profiles remain fully functional
+- **New Features**: To benefit from improved audio quality, consider re-creating voice profiles
+- **Project Compatibility**: Existing audiobook projects work without modification
+- **Regeneration**: Individual chunks can be regenerated with improved quality settings
+
+### **Batch Processing Considerations**
+- Large batch jobs may take significant time depending on text length and hardware
+- Monitor system resources during extended batch processing sessions
+- Consider processing very large books in smaller batches for better control
+
+---
+
+## 📋 Supported Formats
+
+### Input
+- **Text**: `.txt`, `.md`, formatted stories and scripts
+- **Audio Samples**: `.wav`, `.mp3`, `.flac` for voice cloning
+- **Batch Files**: Multiple text files for queue processing
+
+### Output
+- **Audio**: High-quality `.wav` files with professional volume levels
+- **Projects**: Organized folder structure with chapters
+- **Exports**: Ready-to-use audiobook files
+- **Batch Results**: Multiple completed audiobooks from queue processing
+
+---
+
+## 🆘 Support
+
+- **Features Guide**: See `AUDIOBOOK_FEATURES.md` for detailed capabilities
+- **Development Notes**: Check `development/` folder for technical details
+- **Issues**: Report problems via GitHub issues
+
+---
+
+## 📄 License
+
+This project is licensed under the terms specified in `LICENSE`.
+
+---
+
+**🎉 Ready to create amazing audiobooks with professional volume levels and enhanced audio quality? Run `./launch_audiobook.bat` and start generating!** 

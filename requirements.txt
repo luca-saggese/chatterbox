@@ -1,0 +1,39 @@
+# Chatterbox TTS Audiobook Edition - Requirements
+# This file contains all dependencies needed to install Chatterbox TTS manually
+# Alternative to using install-audiobook.bat
+
+# Core PyTorch dependencies with CUDA support (CUDA 12.1)
+# For CPU-only installation, remove the +cu121 suffixes and index-url
+torch==2.4.1+cu121
+torchvision==0.19.1+cu121
+torchaudio==2.4.1+cu121
+--index-url https://download.pytorch.org/whl/cu121
+
+# Core Chatterbox TTS dependencies (from pyproject.toml)
+numpy==1.26.0
+resampy==0.4.3
+librosa==0.10.0
+s3tokenizer
+transformers==4.46.3
+diffusers==0.29.0
+resemble-perth==1.0.1
+omegaconf==2.3.0
+conformer==0.3.2
+spacy>=3.4.0
+
+# Compatibility and stability dependencies
+pydantic==2.10.6
+
+# Web interface dependency
+gradio
+
+# Optional dependencies for advanced NLP
+# Uncomment the line below if you need enhanced language processing
+# spacy[en_core_web_sm]>=3.4.0
+
+# Installation Notes:
+# 1. Make sure you have Python 3.10+ installed
+# 2. For CUDA support, ensure you have compatible NVIDIA drivers
+# 3. For CPU-only installation, modify PyTorch lines to remove +cu121
+# 4. Install with: pip install -r requirements.txt
+# 5. After installation, install the package with: pip install -e . 
