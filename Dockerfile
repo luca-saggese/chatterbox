@@ -54,6 +54,7 @@ ENV HF_HOME=/huggingface
 COPY pyproject.toml /app/
 COPY README.md /app/
 COPY src /app/src
+COPY requirements.txt /app/
 
 RUN pip install -e .
 
