@@ -155,6 +155,61 @@ def korean_normalize(text: str) -> str:
     return result.strip()
 
 
+def italian_normalize(text: str) -> str:
+    """Italian text normalization: ensures proper Unicode normalization for accented characters."""
+    import unicodedata
+    
+    # Mapping of Italian accented characters to decomposed forms (Greek workaround approach)
+    ITALIAN_DECOMPOSE_MAP = {
+        "à": "a\u0300",  # U+00E0 → U+0061 (a) + U+0300 (combining grave)
+        "è": "e\u0300",  # U+00E8 → U+0065 (e) + U+0300 (combining grave)
+        "é": "e\u0301",  # U+00E9 → U+0065 (e) + U+0301 (combining acute)
+        "ì": "i\u0300",  # U+00EC → U+0069 (i) + U+0300 (combining grave)
+        "ò": "o\u0300",  # U+00F2 → U+006F (o) + U+0300 (combining grave)
+        "ù": "u\u0300",  # U+00F9 → U+0075 (u) + U+0300 (combining grave)
+        "À": "A\u0300",  # U+00C0 → U+0041 (A) + U+0300 (combining grave)
+        "È": "E\u0300",  # U+00C8 → U+0045 (E) + U+0300 (combining grave)
+        "É": "E\u0301",  # U+00C9 → U+0045 (E) + U+0301 (combining acute)
+        "Ì": "I\u0300",  # U+00CC → U+0049 (I) + U+0300 (combining grave)
+        "Ò": "O\u0300",  # U+00D2 → U+004F (O) + U+0300 (combining grave)
+        "Ù": "U\u0300",  # U+00D9 → U+0055 (U) + U+0300 (combining grave)
+    }
+    
+    # Try multiple approaches to handle problematic characters
+    
+    # Approach 1: Try NFC (Canonical Composition) first - our standard approach
+    try:
+        nfc_text = unicodedata.normalize('NFC', text)
+        # Quick test: if text contains problematic characters, we might need decomposition
+        if any(char in text for char in ['ì', 'Ì']):  # Known problematic characters
+            # Use decomposition approach as fallback for better TTS compatibility
+            decomposed_text = "".join(ITALIAN_DECOMPOSE_MAP.get(char, char) for char in text)
+            logger.debug(f"Using decomposed form for Italian text: '{text}' → '{decomposed_text}'")
+            return decomposed_text
+        return nfc_text
+    except Exception:
+        pass
+    
+    # Approach 2: Try NFD (Canonical Decomposition) as fallback
+    try:
+        nfd_text = unicodedata.normalize('NFD', text)
+        return nfd_text
+    except Exception:
+        pass
+    
+    # Approach 3: Manual decomposition (Greek workaround approach) as last resort
+    try:
+        decomposed_text = "".join(ITALIAN_DECOMPOSE_MAP.get(char, char) for char in text)
+        logger.warning(f"Using manual decomposition for Italian text: '{text}' → '{decomposed_text}'")
+        return decomposed_text
+    except Exception:
+        pass
+    
+    # Fallback: return original text if all normalization attempts fail
+    logger.warning(f"All Italian normalization approaches failed, returning original text: '{text}'")
+    return text
+
+
 class ChineseCangjieConverter:
     """Converts Chinese characters to Cangjie codes for tokenization."""
     
@@ -262,11 +317,11 @@ class MTLTokenizer:
             txt = add_hebrew_diacritics(txt)
         elif language_id == 'ko':
             txt = korean_normalize(txt)
-        
-        # Prepend language token
+        elif language_id == 'it':
+            txt = italian_normalize(txt)
+          # Prepend language token
         if language_id:
             txt = f"[{language_id.lower()}]{txt}"
-        
         txt = txt.replace(' ', SPACE)
         return self.tokenizer.encode(txt).ids
 
@@ -276,4 +331,8 @@ class MTLTokenizer:
 
         txt = self.tokenizer.decode(seq, skip_special_tokens=False)
         txt = txt.replace(' ', '').replace(SPACE, ' ').replace(EOT, '').replace(UNK, '')
+          # Remove language tokens from the beginning
+        import re
+        txt = re.sub(r'^\[([a-z]{2})\]', '', txt)
+        
         return txt
