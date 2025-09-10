@@ -69,13 +69,27 @@ except ImportError:
     print("Warning: soundfile not available - some audio operations will be limited")
     SOUNDFILE_AVAILABLE = False
 
-# Try importing the TTS module
+# Try importing the TTS modules
 try:
     from src.chatterbox.tts import ChatterboxTTS
     CHATTERBOX_AVAILABLE = True
 except ImportError as e:
     print(f"Warning: ChatterboxTTS not available - {e}")
     CHATTERBOX_AVAILABLE = False
+
+# Try importing the multilingual TTS module
+try:
+    from chatterbox.mtl_tts import ChatterboxMultilingualTTS, SUPPORTED_LANGUAGES
+    CHATTERBOX_MULTILINGUAL_AVAILABLE = True
+    print("✅ ChatterboxMultilingualTTS loaded successfully")
+except ImportError as e:
+    print(f"Warning: ChatterboxMultilingualTTS not available - {e}")
+    # Fallback to basic ChatterboxTTS
+    CHATTERBOX_MULTILINGUAL_AVAILABLE = False
+    SUPPORTED_LANGUAGES = {
+        "en": "English",
+        "it": "Italian"
+    }
 
 DEVICE = "cuda" if torch.cuda.is_available() else "cpu"
 # Force CPU mode for multi-voice to avoid CUDA indexing errors
@@ -86,6 +100,102 @@ DEFAULT_VOICE_LIBRARY = "voice_library"
 CONFIG_FILE = "audiobook_config.json"
 MAX_CHUNKS_FOR_INTERFACE = 100 # Increased from 50 to 100, will add pagination later
 MAX_CHUNKS_FOR_AUTO_SAVE = 100 # Match the interface limit for now
+
+# Language configuration for multilingual support
+LANGUAGE_CONFIG = {
+    "ar": {
+        "audio": "https://storage.googleapis.com/chatterbox-demo-samples/mtl_prompts/ar_f/ar_prompts2.flac",
+        "text": "في الشهر الماضي، وصلنا إلى معلم جديد بمليارين من المشاهدات على قناتنا على يوتيوب."
+    },
+    "da": {
+        "audio": "https://storage.googleapis.com/chatterbox-demo-samples/mtl_prompts/da_m1.flac",
+        "text": "Sidste måned nåede vi en ny milepæl med to milliarder visninger på vores YouTube-kanal."
+    },
+    "de": {
+        "audio": "https://storage.googleapis.com/chatterbox-demo-samples/mtl_prompts/de_f1.flac",
+        "text": "Letzten Monat haben wir einen neuen Meilenstein erreicht: zwei Milliarden Aufrufe auf unserem YouTube-Kanal."
+    },
+    "el": {
+        "audio": "https://storage.googleapis.com/chatterbox-demo-samples/mtl_prompts/el_m.flac",
+        "text": "Τον περασμένο μήνα, φτάσαμε σε ένα νέο ορόσημο με δύο δισεκατομμύρια προβολές στο κανάλι μας στο YouTube."
+    },
+    "en": {
+        "audio": "https://storage.googleapis.com/chatterbox-demo-samples/mtl_prompts/en_f1.flac",
+        "text": "Last month, we reached a new milestone with two billion views on our YouTube channel."
+    },
+    "es": {
+        "audio": "https://storage.googleapis.com/chatterbox-demo-samples/mtl_prompts/es_f1.flac",
+        "text": "El mes pasado alcanzamos un nuevo hito: dos mil millones de visualizaciones en nuestro canal de YouTube."
+    },
+    "fi": {
+        "audio": "https://storage.googleapis.com/chatterbox-demo-samples/mtl_prompts/fi_m.flac",
+        "text": "Viime kuussa saavutimme uuden virstanpylvään kahden miljardin katselukerran kanssa YouTube-kanavallamme."
+    },
+    "fr": {
+        "audio": "https://storage.googleapis.com/chatterbox-demo-samples/mtl_prompts/fr_f1.flac",
+        "text": "Le mois dernier, nous avons atteint un nouveau jalon avec deux milliards de vues sur notre chaîne YouTube."
+    },
+    "he": {
+        "audio": "https://storage.googleapis.com/chatterbox-demo-samples/mtl_prompts/he_m1.flac",
+        "text": "בחודש שעבר הגענו לאבן דרך חדשה עם שני מיליארד צפיות בערוץ היוטיוב שלנו."
+    },
+    "hi": {
+        "audio": "https://storage.googleapis.com/chatterbox-demo-samples/mtl_prompts/hi_f1.flac",
+        "text": "पिछले महीने हमने एक नया मील का पत्थर छुआ: हमारे YouTube चैनल पर दो अरब व्यूज़।"
+    },
+    "it": {
+        "audio": "https://storage.googleapis.com/chatterbox-demo-samples/mtl_prompts/it_m1.flac",
+        "text": "Il mese scorso abbiamo raggiunto un nuovo traguardo: due miliardi di visualizzazioni sul nostro canale YouTube."
+    },
+    "ja": {
+        "audio": "https://storage.googleapis.com/chatterbox-demo-samples/mtl_prompts/ja/ja_prompts1.flac",
+        "text": "先月、私たちのYouTubeチャンネルで二十億回の再生回数という新たなマイルストーンに到達しました。"
+    },
+    "ko": {
+        "audio": "https://storage.googleapis.com/chatterbox-demo-samples/mtl_prompts/ko_f.flac",
+        "text": "지난달 우리는 유튜브 채널에서 이십억 조회수라는 새로운 이정표에 도달했습니다."
+    },
+    "ms": {
+        "audio": "https://storage.googleapis.com/chatterbox-demo-samples/mtl_prompts/ms_f.flac",
+        "text": "Bulan lepas, kami mencapai pencapaian baru dengan dua bilion tontonan di saluran YouTube kami."
+    },
+    "nl": {
+        "audio": "https://storage.googleapis.com/chatterbox-demo-samples/mtl_prompts/nl_m.flac",
+        "text": "Vorige maand bereikten we een nieuwe mijlpaal met twee miljard weergaven op ons YouTube-kanaal."
+    },
+    "no": {
+        "audio": "https://storage.googleapis.com/chatterbox-demo-samples/mtl_prompts/no_f1.flac",
+        "text": "Forrige måned nådde vi en ny milepæl med to milliarder visninger på YouTube-kanalen vår."
+    },
+    "pl": {
+        "audio": "https://storage.googleapis.com/chatterbox-demo-samples/mtl_prompts/pl_m.flac",
+        "text": "W zeszłym miesiącu osiągnęliśmy nowy kamień milowy z dwoma miliardami wyświetleń na naszym kanale YouTube."
+    },
+    "pt": {
+        "audio": "https://storage.googleapis.com/chatterbox-demo-samples/mtl_prompts/pt_m1.flac",
+        "text": "No mês passado, alcançámos um novo marco: dois mil milhões de visualizações no nosso canal do YouTube."
+    },
+    "ru": {
+        "audio": "https://storage.googleapis.com/chatterbox-demo-samples/mtl_prompts/ru_m.flac",
+        "text": "В прошлом месяце мы достигли нового рубежа: два миллиарда просмотров на нашем YouTube-канале."
+    },
+    "sv": {
+        "audio": "https://storage.googleapis.com/chatterbox-demo-samples/mtl_prompts/sv_f.flac",
+        "text": "Förra månaden nådde vi en ny milstolpe med två miljarder visningar på vår YouTube-kanal."
+    },
+    "sw": {
+        "audio": "https://storage.googleapis.com/chatterbox-demo-samples/mtl_prompts/sw_m.flac",
+        "text": "Mwezi uliopita, tulifika hatua mpya ya maoni ya bilioni mbili kweny kituo chetu cha YouTube."
+    },
+    "tr": {
+        "audio": "https://storage.googleapis.com/chatterbox-demo-samples/mtl_prompts/tr_m.flac",
+        "text": "Geçen ay YouTube kanalımızda iki milyar görüntüleme ile yeni bir dönüm noktasına ulaştık."
+    },
+    "zh": {
+        "audio": "https://storage.googleapis.com/chatterbox-demo-samples/mtl_prompts/zh_f2.flac",
+        "text": "上个月，我们达到了一个新的里程碑. 我们的YouTube频道观看次数达到了二十亿次，这绝对令人难以置信。"
+    },
+}
 
 def load_config():
     """Load configuration including voice library path"""
@@ -119,15 +229,26 @@ def set_seed(seed: int):
     np.random.seed(seed)
 
 def load_model():
-    model = ChatterboxTTS.from_pretrained(DEVICE)
+    """Load the model with multilingual support if available"""
+    if CHATTERBOX_MULTILINGUAL_AVAILABLE:
+        model = ChatterboxMultilingualTTS.from_pretrained(DEVICE)
+        print("✅ Loaded ChatterboxMultilingualTTS model")
+    else:
+        model = ChatterboxTTS.from_pretrained(DEVICE)
+        print("✅ Loaded ChatterboxTTS model (basic)")
     return model
 
 def load_model_cpu():
-    """Load model specifically for CPU processing"""
-    model = ChatterboxTTS.from_pretrained("cpu")
+    """Load model specifically for CPU processing with multilingual support"""
+    if CHATTERBOX_MULTILINGUAL_AVAILABLE:
+        model = ChatterboxMultilingualTTS.from_pretrained("cpu")
+        print("✅ Loaded ChatterboxMultilingualTTS model on CPU")
+    else:
+        model = ChatterboxTTS.from_pretrained("cpu")
+        print("✅ Loaded ChatterboxTTS model on CPU (basic)")
     return model
 
-def generate(model, text, audio_prompt_path, exaggeration, temperature, seed_num, cfgw, min_p=0.05, top_p=1.0, repetition_penalty=1.2):
+def generate(model, text, audio_prompt_path, exaggeration, temperature, seed_num, cfgw, min_p=0.05, top_p=1.0, repetition_penalty=1.2, language_id="it"):
     if model is None:
         model = ChatterboxTTS.from_pretrained(DEVICE)
 
@@ -164,16 +285,44 @@ def generate(model, text, audio_prompt_path, exaggeration, temperature, seed_num
             # This is actual text - generate audio
             text_segment = segment.strip()
             if text_segment:
-                wav = model.generate(
-                    text_segment,
-                    conds,
-                    exaggeration=exaggeration,
-                    temperature=temperature,
-                    cfg_weight=cfgw,
-                    min_p=min_p,
-                    top_p=top_p,
-                    repetition_penalty=repetition_penalty,
-                )
+                # Check if this is a multilingual model
+                if hasattr(model, 'generate') and CHATTERBOX_MULTILINGUAL_AVAILABLE:
+                    try:
+                        wav = model.generate(
+                            text_segment,
+                            language_id=language_id,
+                            audio_prompt_path=audio_prompt_path,
+                            exaggeration=exaggeration,
+                            temperature=temperature,
+                            cfg_weight=cfgw,
+                            min_p=min_p,
+                            top_p=top_p,
+                            repetition_penalty=repetition_penalty,
+                        )
+                    except TypeError:
+                        # Fallback for basic ChatterboxTTS
+                        wav = model.generate(
+                            text_segment,
+                            conds,
+                            exaggeration=exaggeration,
+                            temperature=temperature,
+                            cfg_weight=cfgw,
+                            min_p=min_p,
+                            top_p=top_p,
+                            repetition_penalty=repetition_penalty,
+                        )
+                else:
+                    # Basic ChatterboxTTS
+                    wav = model.generate(
+                        text_segment,
+                        conds,
+                        exaggeration=exaggeration,
+                        temperature=temperature,
+                        cfg_weight=cfgw,
+                        min_p=min_p,
+                        top_p=top_p,
+                        repetition_penalty=repetition_penalty,
+                    )
                 audio_np = wav.squeeze(0).numpy()
                 audio_segments.append(audio_np)
     
@@ -185,17 +334,43 @@ def generate(model, text, audio_prompt_path, exaggeration, temperature, seed_num
         return (sample_rate, final_audio)
     else:
         # Fallback to original behavior if no segments
-        wav = model.generate(
-            text,
-            conds,
-            language_id="it",
-            exaggeration=exaggeration,
-            temperature=temperature,
-            cfg_weight=cfgw,
-            min_p=min_p,
-            top_p=top_p,
-            repetition_penalty=repetition_penalty,
-        )
+        if hasattr(model, 'generate') and CHATTERBOX_MULTILINGUAL_AVAILABLE:
+            try:
+                wav = model.generate(
+                    text,
+                    language_id=language_id,
+                    audio_prompt_path=audio_prompt_path,
+                    exaggeration=exaggeration,
+                    temperature=temperature,
+                    cfg_weight=cfgw,
+                    min_p=min_p,
+                    top_p=top_p,
+                    repetition_penalty=repetition_penalty,
+                )
+            except TypeError:
+                # Fallback for basic ChatterboxTTS
+                wav = model.generate(
+                    text,
+                    conds,
+                    exaggeration=exaggeration,
+                    temperature=temperature,
+                    cfg_weight=cfgw,
+                    min_p=min_p,
+                    top_p=top_p,
+                    repetition_penalty=repetition_penalty,
+                )
+        else:
+            # Basic ChatterboxTTS
+            wav = model.generate(
+                text,
+                conds,
+                exaggeration=exaggeration,
+                temperature=temperature,
+                cfg_weight=cfgw,
+                min_p=min_p,
+                top_p=top_p,
+                repetition_penalty=repetition_penalty,
+            )
         return (sample_rate, wav.squeeze(0).numpy())
 
 def generate_with_cpu_fallback(model, text, audio_prompt_path, exaggeration, temperature, cfg_weight, min_p=0.05, top_p=1.0, repetition_penalty=1.2):
@@ -614,7 +789,7 @@ def validate_text_for_generation(text, voice_name=""):
     
     return True, cleaned_text, "Valid"
 
-def generate_with_retry(model, text, audio_prompt_path, exaggeration, temperature, cfg_weight, max_retries=3, min_p=0.05, top_p=1.0, repetition_penalty=1.2):
+def generate_with_retry(model, text, audio_prompt_path, exaggeration, temperature, cfg_weight, max_retries=3, min_p=0.05, top_p=1.0, repetition_penalty=1.2, language_id="it"):
     """Generate audio with retry logic for CUDA errors and text validation"""
     import signal
     import numpy as np
@@ -659,19 +834,47 @@ def generate_with_retry(model, text, audio_prompt_path, exaggeration, temperatur
                 signal.alarm(timeout_seconds)
             
             try:
-                # Prepare conditionals from audio prompt
-                conds = model.prepare_conditionals(audio_prompt_path, exaggeration)
-                
-                wav = model.generate(
-                    text,
-                    conds,
-                    exaggeration=exaggeration,
-                    temperature=temperature,
-                    cfg_weight=cfg_weight,
-                    min_p=min_p,
-                    top_p=top_p,
-                    repetition_penalty=repetition_penalty,
-                )
+                # Check if this is a multilingual model
+                if hasattr(model, 'generate') and CHATTERBOX_MULTILINGUAL_AVAILABLE:
+                    try:
+                        wav = model.generate(
+                            text,
+                            language_id=language_id,
+                            audio_prompt_path=audio_prompt_path,
+                            exaggeration=exaggeration,
+                            temperature=temperature,
+                            cfg_weight=cfg_weight,
+                            min_p=min_p,
+                            top_p=top_p,
+                            repetition_penalty=repetition_penalty,
+                        )
+                    except Exception as e:
+                        print(f"⚠️ Multilingual generation failed, falling back to basic model: {e}")
+                        # Fallback to basic ChatterboxTTS generation
+                        conds = model.prepare_conditionals(audio_prompt_path, exaggeration)
+                        wav = model.generate(
+                            text,
+                            conds,
+                            exaggeration=exaggeration,
+                            temperature=temperature,
+                            cfg_weight=cfg_weight,
+                            min_p=min_p,
+                            top_p=top_p,
+                            repetition_penalty=repetition_penalty,
+                        )
+                else:
+                    # Basic ChatterboxTTS generation
+                    conds = model.prepare_conditionals(audio_prompt_path, exaggeration)
+                    wav = model.generate(
+                        text,
+                        conds,
+                        exaggeration=exaggeration,
+                        temperature=temperature,
+                        cfg_weight=cfg_weight,
+                        min_p=min_p,
+                        top_p=top_p,
+                        repetition_penalty=repetition_penalty,
+                    )
                 
                 # Cancel timeout if successful
                 if hasattr(signal, 'SIGALRM'):
@@ -716,7 +919,8 @@ def create_audiobook(
     selected_voice: str,
     project_name: str,
     resume: bool = False,
-    autosave_interval: int = 10
+    autosave_interval: int = 10,
+    language_id: str = "it"
 ) -> tuple:
     """
     Create audiobook from text using selected voice with smart chunking, autosave every N chunks, and resume support.
@@ -819,7 +1023,8 @@ def create_audiobook(
                 max_retries=3,
                 min_p=voice_config['min_p'],
                 top_p=voice_config['top_p'],
-                repetition_penalty=voice_config['repetition_penalty']
+                repetition_penalty=voice_config['repetition_penalty'],
+                language_id=language_id
             )
             audio_np = wav.squeeze(0).cpu().numpy()
             
@@ -1630,7 +1835,8 @@ def create_multi_voice_audiobook_with_assignments(
     project_name: str,
     voice_assignments: dict,
     resume: bool = False,
-    autosave_interval: int = 10
+    autosave_interval: int = 10,
+    language_id: str = "it"
 ) -> tuple:
     """
     Create multi-voice audiobook using the voice assignments mapping, autosave every N chunks, and resume support.
@@ -1773,13 +1979,31 @@ def create_multi_voice_audiobook_with_assignments(
                 # Use cleaned text for generation
                 chunk_text = cleaned_text
                 
-                # Prepare conditionals from audio prompt
-                conds = processing_model.prepare_conditionals(voice_config['audio_file'], voice_config['exaggeration'])
-                
-                wav = processing_model.generate(
-                    chunk_text, conds,
-                    exaggeration=voice_config['exaggeration'], temperature=voice_config['temperature'],
-                    cfg_weight=voice_config['cfg_weight'])
+                # Check if this is a multilingual model
+                if hasattr(processing_model, 'generate') and CHATTERBOX_MULTILINGUAL_AVAILABLE:
+                    try:
+                        wav = processing_model.generate(
+                            chunk_text,
+                            language_id=language_id,
+                            audio_prompt_path=voice_config['audio_file'],
+                            exaggeration=voice_config['exaggeration'],
+                            temperature=voice_config['temperature'],
+                            cfg_weight=voice_config['cfg_weight'])
+                    except Exception as e:
+                        print(f"⚠️ Multilingual generation failed for chunk {i+1}, falling back to basic model: {e}")
+                        # Fallback to basic ChatterboxTTS generation
+                        conds = processing_model.prepare_conditionals(voice_config['audio_file'], voice_config['exaggeration'])
+                        wav = processing_model.generate(
+                            chunk_text, conds,
+                            exaggeration=voice_config['exaggeration'], temperature=voice_config['temperature'],
+                            cfg_weight=voice_config['cfg_weight'])
+                else:
+                    # Basic ChatterboxTTS generation
+                    conds = processing_model.prepare_conditionals(voice_config['audio_file'], voice_config['exaggeration'])
+                    wav = processing_model.generate(
+                        chunk_text, conds,
+                        exaggeration=voice_config['exaggeration'], temperature=voice_config['temperature'],
+                        cfg_weight=voice_config['cfg_weight'])
                 audio_np = wav.squeeze(0).cpu().numpy()
             
             # Apply volume normalization if enabled in voice profile
@@ -2899,7 +3123,7 @@ def get_project_chunks(project_name: str) -> list:
     print(f"📊 Returning {len(chunks)} chunks for project '{project_name}'")
     return chunks
 
-def regenerate_single_chunk(model, project_name: str, chunk_num: int, voice_library_path: str, custom_text: str = None) -> tuple:
+def regenerate_single_chunk(model, project_name: str, chunk_num: int, voice_library_path: str, custom_text: str = None, language_id: str = "it") -> tuple:
     """Regenerate a single chunk from a project"""
     # Check if model is None and load it if needed
     if model is None:
@@ -2952,7 +3176,8 @@ def regenerate_single_chunk(model, project_name: str, chunk_num: int, voice_libr
                 voice_config['audio_file'],
                 voice_config.get('exaggeration', 0.5),
                 voice_config.get('temperature', 0.8),
-                voice_config.get('cfg_weight', 0.5)
+                voice_config.get('cfg_weight', 0.5),
+                language_id=language_id
             )
             
             voice_display = voice_config.get('display_name', 'Unknown')
@@ -2984,7 +3209,8 @@ def regenerate_single_chunk(model, project_name: str, chunk_num: int, voice_libr
                 voice_config['audio_file'],
                 voice_config.get('exaggeration', 0.5),
                 voice_config.get('temperature', 0.8),
-                voice_config.get('cfg_weight', 0.5)
+                voice_config.get('cfg_weight', 0.5),
+                language_id=language_id
             )
             
             voice_display = f"{voice_config.get('display_name', assigned_voice)} (Character: {character_name})"
@@ -4282,7 +4508,8 @@ def create_audiobook_with_original_voice_metadata(
     project_name: str,
     original_voice_name: str,
     resume: bool = False,
-    autosave_interval: int = 10
+    autosave_interval: int = 10,
+    language_id: str = "it"
 ) -> tuple:
     """Create audiobook but save original voice name in metadata (for volume normalization)"""
     # This is a modified version of create_audiobook that preserves the original voice name in metadata
@@ -4366,7 +4593,8 @@ def create_audiobook_with_original_voice_metadata(
                 voice_config['audio_file_path'], 
                 voice_config['exaggeration'], 
                 voice_config['temperature'], 
-                voice_config['cfg_weight']
+                voice_config['cfg_weight'],
+                language_id=language_id
             )
             
             if audio_data is None:
@@ -4481,7 +4709,7 @@ def create_audiobook_with_original_voice_metadata(
     return (getattr(model, "sr", 24000) if model else 24000, combined_audio), success_msg
 
 def create_audiobook_with_volume_settings(model, text_content, voice_library_path, selected_voice, project_name, 
-                                         enable_norm=True, target_level=-18.0):
+                                         enable_norm=True, target_level=-18.0, language_id="it"):
     """Wrapper for create_audiobook that applies volume normalization settings"""
     # Get the voice config and temporarily apply volume settings
     voice_config = get_voice_config(voice_library_path, selected_voice)
@@ -4505,7 +4733,7 @@ def create_audiobook_with_volume_settings(model, text_content, voice_library_pat
         
         # Use the temporary voice for audiobook creation, but preserve original voice name in metadata
         result = create_audiobook_with_original_voice_metadata(
-            model, text_content, voice_library_path, temp_voice_name, project_name, selected_voice
+            model, text_content, voice_library_path, temp_voice_name, project_name, selected_voice, language_id=language_id
         )
         
         # Clean up temporary voice
@@ -4516,7 +4744,7 @@ def create_audiobook_with_volume_settings(model, text_content, voice_library_pat
         
         return result
     else:
-        return create_audiobook(model, text_content, voice_library_path, selected_voice, project_name)
+        return create_audiobook(model, text_content, voice_library_path, selected_voice, project_name, language_id=language_id)
 
 def create_multi_voice_audiobook_with_original_voice_metadata(
     model,
@@ -4526,7 +4754,8 @@ def create_multi_voice_audiobook_with_original_voice_metadata(
     temp_voice_assignments: dict,
     original_voice_assignments: dict,
     resume: bool = False,
-    autosave_interval: int = 10
+    autosave_interval: int = 10,
+    language_id: str = "it"
 ) -> tuple:
     """Create multi-voice audiobook but save original voice names in metadata (for volume normalization)"""
     # This is a modified version that preserves original voice names in metadata
@@ -4534,7 +4763,7 @@ def create_multi_voice_audiobook_with_original_voice_metadata(
     
     # Use the existing multi-voice function with temp assignments for generation
     result = create_multi_voice_audiobook_with_assignments(
-        model, text_content, voice_library_path, project_name, temp_voice_assignments, resume, autosave_interval
+        model, text_content, voice_library_path, project_name, temp_voice_assignments, resume, autosave_interval, language_id
     )
     
     # After creation, update the metadata to use original voice names
@@ -4591,7 +4820,7 @@ def create_multi_voice_audiobook_with_original_voice_metadata(
     return result
 
 def create_multi_voice_audiobook_with_volume_settings(model, text_content, voice_library_path, project_name, 
-                                                     voice_assignments, enable_norm=True, target_level=-18.0):
+                                                     voice_assignments, enable_norm=True, target_level=-18.0, language_id="it"):
     """Wrapper for multi-voice audiobook creation that applies volume normalization settings"""
     # Apply volume settings to all voice assignments
     if enable_norm:
@@ -4617,7 +4846,7 @@ def create_multi_voice_audiobook_with_volume_settings(model, text_content, voice
         
         # Use temporary voices for audiobook creation but preserve original voice names in metadata
         result = create_multi_voice_audiobook_with_original_voice_metadata(
-            model, text_content, voice_library_path, project_name, temp_assignments, voice_assignments
+            model, text_content, voice_library_path, project_name, temp_assignments, voice_assignments, language_id=language_id
         )
         
         # Clean up temporary voices
@@ -4631,7 +4860,7 @@ def create_multi_voice_audiobook_with_volume_settings(model, text_content, voice
         return result
     else:
         return create_multi_voice_audiobook_with_assignments(
-            model, text_content, voice_library_path, project_name, voice_assignments
+            model, text_content, voice_library_path, project_name, voice_assignments, language_id=language_id
         )
 
 # =============================================================================
@@ -4716,7 +4945,8 @@ def create_batch_audiobook(
     selected_voice: str,
     project_name: str,
     enable_norm: bool = True,
-    target_level: float = -18.0
+    target_level: float = -18.0,
+    language_id: str = "it"
 ) -> tuple:
     """
     Create multiple audiobooks from a batch of files.
@@ -4771,7 +5001,8 @@ def create_batch_audiobook(
                     selected_voice=selected_voice,
                     project_name=current_project_name,
                     enable_norm=enable_norm,
-                    target_level=target_level
+                    target_level=target_level,
+                    language_id=language_id
                 )
                 
                 if result and len(result) >= 2 and result[0] is not None:
@@ -4872,6 +5103,21 @@ with gr.Blocks(css=css, title="Chatterbox TTS - Audiobook Edition") as demo:
                         # Voice status display
                         tts_voice_status = gr.HTML(
                             "<div class='voice-status'>📝 Manual input mode - upload your own audio file below</div>"
+                        )
+                    
+                    # Language Selection Section (for multilingual TTS)
+                    with gr.Group():
+                        gr.HTML("<h4>🌍 Language Selection</h4>")
+                        language_selector = gr.Dropdown(
+                            choices=[(f"{lang.title()} ({code})", code) for code, lang in SUPPORTED_LANGUAGES.items()],
+                            label="Language for TTS",
+                            value="it",  # Default to Italian
+                            info="Select the language for text-to-speech synthesis"
+                        )
+                        
+                        # Language status display
+                        language_status = gr.HTML(
+                            f"<div class='voice-status'>🇮🇹 Default language: Italian {'(Multilingual model available)' if CHATTERBOX_MULTILINGUAL_AVAILABLE else '(Basic model only)'}</div>"
                         )
                     
                     # Audio input (conditionally visible)
@@ -5226,6 +5472,26 @@ with gr.Blocks(css=css, title="Chatterbox TTS - Audiobook Edition") as demo:
                             
                             volume_status = gr.HTML(
                                 "<div class='voice-status'>📚 Audiobook Standard: -18 dB RMS (Professional audiobook level)</div>"
+                            )
+                        
+                            multi_volume_status = gr.HTML(
+                                "<div class='voice-status'>📚 Audiobook Standard: -18 dB RMS (Professional audiobook level)</div>"
+                            )
+                        
+                        # Language Selection Section (for multilingual audiobook creation)
+                        with gr.Group():
+                            gr.HTML("<h4>🌍 Language Selection</h4>")
+                            
+                            multi_language_selector = gr.Dropdown(
+                                choices=[(f"{lang.title()} ({code})", code) for code, lang in SUPPORTED_LANGUAGES.items()],
+                                label="Language for Multi-Voice Audiobook",
+                                value="it",  # Default to Italian
+                                info="Select the language for multi-voice audiobook text-to-speech synthesis"
+                            )
+                            
+                            # Language status display
+                            multi_language_status = gr.HTML(
+                                f"<div class='voice-status'>🇮🇹 Default language: Italian {'(Multilingual model available)' if CHATTERBOX_MULTILINGUAL_AVAILABLE else '(Basic model only)'}</div>"
                             )
                         
                         # Previous Projects Section
@@ -5913,6 +6179,22 @@ with gr.Blocks(css=css, title="Chatterbox TTS - Audiobook Edition") as demo:
                             "<div class='audiobook-status'>📁 Select a project to view all chunks</div>"
                         )
                     
+                    # Language Selection Section (for regeneration)
+                    with gr.Group():
+                        gr.HTML("<h4>🌍 Language Selection</h4>")
+                        
+                        regen_language_selector = gr.Dropdown(
+                            choices=[(f"{lang.title()} ({code})", code) for code, lang in SUPPORTED_LANGUAGES.items()],
+                            label="Language for Regeneration",
+                            value="it",  # Default to Italian
+                            info="Select the language for chunk regeneration text-to-speech synthesis"
+                        )
+                        
+                        # Language status display
+                        regen_language_status = gr.HTML(
+                            f"<div class='voice-status'>🇮🇹 Default language: Italian {'(Multilingual model available)' if CHATTERBOX_MULTILINGUAL_AVAILABLE else '(Basic model only)'}</div>"
+                        )
+                    
                     # NEW: Pagination Controls
                     with gr.Group():
                         gr.HTML("<h4>📄 Chunk Navigation</h4>")
@@ -6162,6 +6444,10 @@ with gr.Blocks(css=css, title="Chatterbox TTS - Audiobook Edition") as demo:
             temp,
             seed_num,
             cfg_weight,
+            gr.State(0.05),  # min_p default
+            gr.State(1.0),   # top_p default  
+            gr.State(1.2),   # repetition_penalty default
+            language_selector,
         ],
         outputs=audio_output,
     )
@@ -6186,8 +6472,8 @@ with gr.Blocks(css=css, title="Chatterbox TTS - Audiobook Edition") as demo:
     )
 
     test_voice_btn.click(
-        fn=lambda model, text, audio, exag, temp, cfg, min_p_val, top_p_val, rep_penalty: generate(model, text, audio, exag, temp, 0, cfg, min_p_val, top_p_val, rep_penalty),
-        inputs=[model_state, test_text, voice_audio, voice_exaggeration, voice_temp, voice_cfg, voice_min_p, voice_top_p, voice_repetition_penalty],
+        fn=lambda model, text, audio, exag, temp, cfg, min_p_val, top_p_val, rep_penalty, lang_id: generate(model, text, audio, exag, temp, 0, cfg, min_p_val, top_p_val, rep_penalty, lang_id),
+        inputs=[model_state, test_text, voice_audio, voice_exaggeration, voice_temp, voice_cfg, voice_min_p, voice_top_p, voice_repetition_penalty, language_selector],
         outputs=test_audio_output
     )
 
@@ -6279,7 +6565,8 @@ with gr.Blocks(css=css, title="Chatterbox TTS - Audiobook Edition") as demo:
             audiobook_voice_selector, 
             project_name, 
             enable_volume_norm, 
-            target_volume_level
+            target_volume_level,
+            audiobook_language_selector
         ],
         outputs=[audiobook_output, audiobook_status]
     ).then(
@@ -6305,7 +6592,7 @@ with gr.Blocks(css=css, title="Chatterbox TTS - Audiobook Edition") as demo:
     # Enhanced Audiobook Creation with chunking and saving
     process_btn.click(
         fn=create_audiobook_with_volume_settings,
-        inputs=[model_state, audiobook_text, voice_library_path_state, audiobook_voice_selector, project_name, enable_volume_norm, target_volume_level],
+        inputs=[model_state, audiobook_text, voice_library_path_state, audiobook_voice_selector, project_name, enable_volume_norm, target_volume_level, audiobook_language_selector],
         outputs=[audiobook_output, audiobook_status]
     ).then(
         fn=force_refresh_all_project_dropdowns,
