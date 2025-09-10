@@ -58,7 +58,7 @@ COPY requirements.txt /app/
 
 RUN pip install -e .
 
-RUN pip install -r requirements.txt
+#RUN pip install -r requirements.txt
 RUN pip install gradio
 
 COPY . /app
