@@ -48,6 +48,7 @@ class T3(nn.Module):
     def __init__(self, hp=T3Config()):
         super().__init__()
         self.hp = hp
+        self.compiled = False
         self.cfg = LlamaConfig(**LLAMA_CONFIGS[hp.llama_config_name])
         self.tfmr = LlamaModel(self.cfg)
         self.dim = self.cfg.hidden_size

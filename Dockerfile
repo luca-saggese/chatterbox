@@ -30,9 +30,10 @@ ENV PATH="/app/venv/bin:$PATH"
 # Installa pip e PyTorch prima per sfruttare la cache
 RUN apt-get update && apt-get install -y ninja-build \
  && pip install --upgrade pip \
- && pip install wheel \
- && pip install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cu124 \
- && pip install --no-build-isolation diso
+ && pip install wheel 
+
+RUN pip install torch==2.4.1 torchvision==0.19.1 torchaudio==2.4.1 \
+  --index-url https://download.pytorch.org/whl/cu121
 
 
 
@@ -59,7 +60,7 @@ COPY requirements.txt /app/
 RUN pip install -e .
 
 #RUN pip install -r requirements.txt
-RUN pip install gradio
+RUN pip install gradio gradio[mcp]
 
 COPY . /app
 
