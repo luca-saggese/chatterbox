@@ -242,6 +242,13 @@ class StableSpeedAudioGenerator:
         wav = self.model.generate(
             text,
             language_id=language_id,
+            # Stable inference flags
+            stable_inference=True,
+            stable_position_mode='cyclic',
+            stable_max_position_embedding=256,
+            stable_reset_position_every=None,
+            stable_stabilize_kv_cache=True,
+            stable_kv_reset_interval=200,
             **generate_kwargs
         )
         

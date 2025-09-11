@@ -241,6 +241,13 @@ class ChatterboxMultilingualTTS:
         repetition_penalty=2.0,
         min_p=0.05,
         top_p=1.0,
+        # Stabilization options
+        stable_inference: bool = False,
+        stable_position_mode: str = "cyclic",    # 'cyclic' | 'clamped' | 'reset'
+        stable_max_position_embedding: int = 256,
+        stable_reset_position_every: int | None = None,
+        stable_stabilize_kv_cache: bool = False,
+        stable_kv_reset_interval: int = 0,
     ):
         # Validate language_id
         if language_id and language_id.lower() not in SUPPORTED_LANGUAGES:
@@ -284,6 +291,13 @@ class ChatterboxMultilingualTTS:
                 repetition_penalty=repetition_penalty,
                 min_p=min_p,
                 top_p=top_p,
+                # Stabilization pass-through (defaults keep legacy behavior)
+                use_stable_positions=stable_inference,
+                position_mode=stable_position_mode,
+                max_position_embedding=stable_max_position_embedding,
+                reset_position_every=stable_reset_position_every,
+                stabilize_kv_cache=stable_stabilize_kv_cache,
+                kv_reset_interval=stable_kv_reset_interval,
             )
             # Extract only the conditional batch.
             speech_tokens = speech_tokens[0]

@@ -227,6 +227,14 @@ class T3(nn.Module):
         length_penalty=1.0,
         repetition_penalty=1.2,
         cfg_weight=0.5,
+
+        # Speed stabilization (optional)
+        use_stable_positions: bool = False,
+        position_mode: str = "cyclic",      # 'cyclic' | 'clamped' | 'reset'
+        max_position_embedding: int = 256,    # for cyclic/clamped
+        reset_position_every: Optional[int] = None,  # for 'reset' mode
+        stabilize_kv_cache: bool = False,
+        kv_reset_interval: int = 0,
     ):
         """
         Args:
@@ -300,6 +308,7 @@ class T3(nn.Module):
 
         bos_token = torch.tensor([[self.hp.start_speech_token]], dtype=torch.long, device=device)
         bos_embed = self.speech_emb(bos_token)  # shape: (B, 1, embed_dim)
+        # Position 0 for BOS
         bos_embed = bos_embed + self.speech_pos_emb.get_fixed_embedding(0)
 
         # batch_size=2 for CFG
@@ -330,15 +339,18 @@ class T3(nn.Module):
         # Initialize kv_cache with the full context.
         past = output.past_key_values
 
+        # Stabilization tracking
+        last_reset_step = 0
+
         # ---- Generation Loop using kv_cache ----
         for i in tqdm(range(max_new_tokens), desc="Sampling", dynamic_ncols=True):
-            logits_step = output.logits[:, -1, :]                
+            logits_step = output.logits[:, -1, :]
             # CFG combine  → (1, V)
             cond   = logits_step[0:1, :]
             uncond = logits_step[1:2, :]
             cfg = torch.as_tensor(cfg_weight, device=cond.device, dtype=cond.dtype)
             logits = cond + cfg * (cond - uncond)
-            
+
             # Apply alignment stream analyzer integrity checks
             if self.patched_model.alignment_stream_analyzer is not None:
                 if logits.dim() == 1:            # guard in case something upstream squeezed
@@ -350,11 +362,11 @@ class T3(nn.Module):
             # Apply repetition penalty
             ids_for_proc = generated_ids[:1, ...]   # batch = 1
             logits = repetition_penalty_processor(ids_for_proc, logits)  # expects (B,V)
-            
+
             # Apply temperature scaling.
             if temperature != 1.0:
                 logits = logits / temperature
-                
+
             # Apply min_p and top_p filtering
             logits = min_p_warper(ids_for_proc, logits)
             logits = top_p_warper(ids_for_proc, logits)
@@ -371,23 +383,84 @@ class T3(nn.Module):
                 logger.info(f"✅ EOS token detected! Stopping generation at step {i+1}")
                 break
 
+            # Determine stabilized position index for the next token
+            if use_stable_positions:
+                current_step = i + 1  # steps after BOS
+                if position_mode == "cyclic":
+                    pos_idx = (current_step) % max_position_embedding
+                elif position_mode == "clamped":
+                    pos_idx = min(current_step, max_position_embedding - 1)
+                elif position_mode == "reset" and reset_position_every:
+                    if current_step % reset_position_every == 0:
+                        last_reset_step = current_step
+                        pos_idx = 0
+                    else:
+                        pos_idx = current_step - last_reset_step
+                        if max_position_embedding:
+                            pos_idx = min(pos_idx, max_position_embedding - 1)
+                else:
+                    pos_idx = current_step
+            else:
+                pos_idx = i + 1
+
             # Get embedding for the new token.
             next_token_embed = self.speech_emb(next_token)
-            next_token_embed = next_token_embed + self.speech_pos_emb.get_fixed_embedding(i + 1)
+            next_token_embed = next_token_embed + self.speech_pos_emb.get_fixed_embedding(pos_idx)
 
             #  For CFG
             next_token_embed = torch.cat([next_token_embed, next_token_embed])
 
-            # Forward pass with only the new token and the cached past.
-            output = self.patched_model(
-                inputs_embeds=next_token_embed,
-                past_key_values=past,
-                output_attentions=True,
-                output_hidden_states=True,
-                return_dict=True,
-            )
-            # Update the kv_cache.
-            past = output.past_key_values
+            # Optional KV cache reset to prevent drift/bias accumulation
+            if stabilize_kv_cache and kv_reset_interval and ((i + 1) % kv_reset_interval == 0):
+                # Rebuild the full speech context with stabilized positions
+                # Build speech embeds for all generated ids (including BOS at pos 0)
+                speech_embeds = []
+                for j, tok in enumerate(generated_ids[0]):
+                    tok = tok.view(1, 1).to(device)
+                    emb = self.speech_emb(tok)
+                    if j == 0:
+                        emb = emb + self.speech_pos_emb.get_fixed_embedding(0)
+                    else:
+                        if use_stable_positions:
+                            if position_mode == "cyclic":
+                                pj = (j) % max_position_embedding
+                            elif position_mode == "clamped":
+                                pj = min(j, max_position_embedding - 1)
+                            elif position_mode == "reset" and reset_position_every:
+                                # positions since last reset
+                                pj = (j - (last_reset_step))
+                                if max_position_embedding:
+                                    pj = min(pj, max_position_embedding - 1)
+                            else:
+                                pj = j
+                        else:
+                            pj = j
+                        emb = emb + self.speech_pos_emb.get_fixed_embedding(pj)
+                    speech_embeds.append(emb)
+                speech_context = torch.cat(speech_embeds, dim=1)
+                speech_context = torch.cat([speech_context, speech_context])  # CFG
+                full_context = torch.cat([embeds, speech_context], dim=1)
+
+                output = self.patched_model(
+                    inputs_embeds=full_context,
+                    past_key_values=None,
+                    use_cache=True,
+                    output_attentions=True,
+                    output_hidden_states=True,
+                    return_dict=True,
+                )
+                past = output.past_key_values
+            else:
+                # Forward pass with only the new token and the cached past.
+                output = self.patched_model(
+                    inputs_embeds=next_token_embed,
+                    past_key_values=past,
+                    output_attentions=True,
+                    output_hidden_states=True,
+                    return_dict=True,
+                )
+                # Update the kv_cache.
+                past = output.past_key_values
 
         # Concatenate all predicted tokens along the sequence dimension.
         predicted_tokens = torch.cat(predicted, dim=1)  # shape: (B, num_tokens)

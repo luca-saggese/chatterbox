@@ -123,8 +123,8 @@ class LongAudioGenerator:
         temperature: float = 0.8,
         cfg_weight: float = 0.5,
         seed: int = 0,
-        max_chunk_length: int = 1000,  # Increased from 500
-        add_pauses: bool = True,
+        max_chunk_length: int = 100,  # Increased from 500
+        add_pauses: bool = False,
         pause_duration: float = 0.5
     ) -> Tuple[int, np.ndarray]:
         """
@@ -177,7 +177,14 @@ class LongAudioGenerator:
                     chunk, language_id, audio_prompt_path,
                     exaggeration, temperature, cfg_weight
                 )
-                audio_segments.append(wav.squeeze(0).numpy())
+                
+                # DEBUG: Save individual chunk for inspection
+                chunk_audio = wav.squeeze(0).numpy()
+                debug_filename = f"debug_chunk_{i:03d}_of_{len(chunks):03d}.wav"
+                sf.write(debug_filename, chunk_audio, self.model.sr)
+                print(f"🔍 DEBUG: Saved chunk {i} to {debug_filename} ({len(chunk_audio)/self.model.sr:.2f}s)")
+                
+                audio_segments.append(chunk_audio)
                 
                 # Add pause between chunks (except for the last one)
                 if add_pauses and i < len(chunks):
@@ -224,6 +231,13 @@ class LongAudioGenerator:
         wav = self.model.generate(
             text,
             language_id=language_id,
+            # Enable stabilized inference by default for long text
+            stable_inference=True,
+            stable_position_mode='cyclic',
+            stable_max_position_embedding=256,
+            stable_reset_position_every=None,
+            stable_stabilize_kv_cache=False,
+            stable_kv_reset_interval=0,
             **generate_kwargs
         )
         
