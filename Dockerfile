@@ -12,6 +12,7 @@ RUN apt update && apt install -y \
     python3.10 python3.10-venv python3.10-dev python3-pip \
     git wget curl unzip ffmpeg libgl1-mesa-glx \
     ninja-build build-essential \
+    vim \
     && apt clean
 
 
