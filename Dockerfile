@@ -70,4 +70,4 @@ COPY . /app
 EXPOSE 8080
 
 # Comando di default per avviare il server Gradio
-CMD ["python3", "gradio_tts_app_audiobook.py", "--share", "--port", "8080"]
+CMD ["python3", "multilingual_app_audiobook.py", "--share", "--port", "8080"]
