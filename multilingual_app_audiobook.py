@@ -298,7 +298,7 @@ def generate_long_audio(
     exaggeration: float = 0.5,
     temperature: float = 0.8,
     cfg_weight: float = 0.5,
-    max_chunk_length: int = 1000,
+    max_chunk_length: int = 200,
     add_pauses: bool = True,
     pause_duration: float = 0.5
 ) -> Tuple[int, np.ndarray]:
