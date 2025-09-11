@@ -387,7 +387,7 @@ def generate_tts_audio(
     temperature_input: float = 0.8,
     seed_num_input: int = 0,
     cfgw_input: float = 0.5,
-    max_chunk_length: int = 1000,
+    max_chunk_length: int = 100,
     add_pauses: bool = True,
     pause_duration: float = 0.5
 ) -> tuple[int, np.ndarray]:
@@ -480,10 +480,10 @@ with gr.Blocks() as demo:
             )
             
             exaggeration = gr.Slider(
-                0.25, 2, step=.05, label="Exaggeration (Neutral = 0.5, extreme values can be unstable)", value=.5
+                0.25, 2, step=.05, label="Exaggeration (Neutral = 0.5, extreme values can be unstable)", value=1.75
             )
             cfg_weight = gr.Slider(
-                0.2, 1, step=.05, label="CFG/Pace", value=0.3
+                0.2, 1, step=.05, label="CFG/Pace", value=0.75
             )
 
             with gr.Accordion("More options", open=False):
@@ -493,9 +493,9 @@ with gr.Blocks() as demo:
                 # Long audio chunking settings
                 gr.HTML("<h5>🔧 Long Audio Settings</h5>")
                 max_chunk_length = gr.Slider(
-                    500, 2000, step=100, 
+                    50, 800, step=100, 
                     label="Max Chunk Length (chars)", 
-                    value=1000,
+                    value=100,
                     info="Longer chunks = better continuity but higher memory usage"
                 )
                 add_pauses = gr.Checkbox(
