@@ -38,9 +38,10 @@ def main():
         print("Error: The file 'input.txt' was not found.")
         return
 
-    AUDIO_PROMPT_PATH = "https://storage.googleapis.com/chatterbox-demo-samples/mtl_prompts/it_m1.flac"
-    # Download the audio file if it's a URL
-    AUDIO_PROMPT_PATH = download_audio_if_needed(AUDIO_PROMPT_PATH)
+    # AUDIO_PROMPT_PATH = "https://storage.googleapis.com/chatterbox-demo-samples/mtl_prompts/it_m1.flac"
+    # # Download the audio file if it's a URL
+    # AUDIO_PROMPT_PATH = download_audio_if_needed(AUDIO_PROMPT_PATH)
+    AUDIO_PROMPT_PATH = "pannofino.mp3"
     
     model = ChatterboxMultilingualTTS.from_pretrained(device="cuda")
     
