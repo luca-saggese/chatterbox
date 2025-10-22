@@ -1,6 +1,7 @@
 from dataclasses import dataclass
 from pathlib import Path
 import os
+import re
 
 import librosa
 import torch
@@ -230,40 +231,25 @@ class ChatterboxMultilingualTTS:
         ).to(device=self.device)
         self.conds = Conditionals(t3_cond, s3gen_ref_dict)
 
-    def generate(
+    def _split_into_sentences(self, text: str) -> list[str]:
+        """Split text into sentences using common punctuation marks."""
+        # Split by sentence-ending punctuation and newlines
+        sentences = re.split(r'[\.\!\?\n]', text)
+        # Filter out empty strings and strip whitespace
+        filtered_sentences = [s.strip() for s in sentences if s.strip()]
+        return filtered_sentences
+
+    def _generate_single(
         self,
         text,
         language_id,
-        audio_prompt_path=None,
-        exaggeration=0.5,
         cfg_weight=0.5,
         temperature=0.8,
         repetition_penalty=2.0,
         min_p=0.05,
         top_p=1.0,
     ):
-        # Validate language_id
-        if language_id and language_id.lower() not in SUPPORTED_LANGUAGES:
-            supported_langs = ", ".join(SUPPORTED_LANGUAGES.keys())
-            raise ValueError(
-                f"Unsupported language_id '{language_id}'. "
-                f"Supported languages: {supported_langs}"
-            )
-        
-        if audio_prompt_path:
-            self.prepare_conditionals(audio_prompt_path, exaggeration=exaggeration)
-        else:
-            assert self.conds is not None, "Please `prepare_conditionals` first or specify `audio_prompt_path`"
-
-        # Update exaggeration if needed
-        if float(exaggeration) != float(self.conds.t3.emotion_adv[0, 0, 0].item()):
-            _cond: T3Cond = self.conds.t3
-            self.conds.t3 = T3Cond(
-                speaker_emb=_cond.speaker_emb,
-                cond_prompt_speech_tokens=_cond.cond_prompt_speech_tokens,
-                emotion_adv=exaggeration * torch.ones(1, 1, 1),
-            ).to(device=self.device)
-
+        """Generate audio for a single sentence/text chunk."""
         # Norm and tokenize text
         text = punc_norm(text)
         text_tokens = self.tokenizer.text_to_tokens(text, language_id=language_id.lower() if language_id else None).to(self.device)
@@ -299,3 +285,106 @@ class ChatterboxMultilingualTTS:
             wav = wav.squeeze(0).detach().cpu().numpy()
             watermarked_wav = self.watermarker.apply_watermark(wav, sample_rate=self.sr)
         return torch.from_numpy(watermarked_wav).unsqueeze(0)
+
+    def generate(
+        self,
+        text,
+        language_id,
+        audio_prompt_path=None,
+        exaggeration=0.5,
+        cfg_weight=0.5,
+        temperature=0.8,
+        repetition_penalty=2.0,
+        min_p=0.05,
+        top_p=1.0,
+        auto_split=True,
+    ):
+        """
+        Generate speech from text.
+        
+        Args:
+            text: Input text to synthesize
+            language_id: Language code (e.g., 'en', 'it', 'fr')
+            audio_prompt_path: Path to reference audio file
+            exaggeration: Speech expressiveness (0.25-2.0, neutral=0.5)
+            cfg_weight: CFG/Pace weight (0.2-1.0)
+            temperature: Generation randomness (0.05-5.0)
+            repetition_penalty: Penalty for repeated tokens
+            min_p: Minimum probability threshold
+            top_p: Nucleus sampling threshold
+            auto_split: If True, automatically split long text into sentences and concatenate
+        
+        Returns:
+            torch.Tensor: Generated audio waveform
+        """
+        # Validate language_id
+        if language_id and language_id.lower() not in SUPPORTED_LANGUAGES:
+            supported_langs = ", ".join(SUPPORTED_LANGUAGES.keys())
+            raise ValueError(
+                f"Unsupported language_id '{language_id}'. "
+                f"Supported languages: {supported_langs}"
+            )
+        
+        if audio_prompt_path:
+            self.prepare_conditionals(audio_prompt_path, exaggeration=exaggeration)
+        else:
+            assert self.conds is not None, "Please `prepare_conditionals` first or specify `audio_prompt_path`"
+
+        # Update exaggeration if needed
+        if float(exaggeration) != float(self.conds.t3.emotion_adv[0, 0, 0].item()):
+            _cond: T3Cond = self.conds.t3
+            self.conds.t3 = T3Cond(
+                speaker_emb=_cond.speaker_emb,
+                cond_prompt_speech_tokens=_cond.cond_prompt_speech_tokens,
+                emotion_adv=exaggeration * torch.ones(1, 1, 1),
+            ).to(device=self.device)
+
+        # Auto-split text into sentences if enabled
+        if auto_split:
+            sentences = self._split_into_sentences(text)
+            
+            # If only one sentence or text is short, generate directly
+            if len(sentences) <= 1:
+                return self._generate_single(
+                    text=text,
+                    language_id=language_id,
+                    cfg_weight=cfg_weight,
+                    temperature=temperature,
+                    repetition_penalty=repetition_penalty,
+                    min_p=min_p,
+                    top_p=top_p,
+                )
+            
+            # Generate audio for each sentence and concatenate
+            print(f"Auto-splitting text into {len(sentences)} sentences...")
+            combined_audio = None
+            for i, sentence in enumerate(sentences):
+                print(f"Generating sentence {i+1}/{len(sentences)}: {sentence[:50]}...")
+                wav = self._generate_single(
+                    text=sentence,
+                    language_id=language_id,
+                    cfg_weight=cfg_weight,
+                    temperature=temperature,
+                    repetition_penalty=repetition_penalty,
+                    min_p=min_p,
+                    top_p=top_p,
+                )
+                
+                if combined_audio is None:
+                    combined_audio = wav
+                else:
+                    combined_audio = torch.cat((combined_audio, wav), dim=1)
+            
+            print("Audio generation complete.")
+            return combined_audio
+        else:
+            # Generate without splitting
+            return self._generate_single(
+                text=text,
+                language_id=language_id,
+                cfg_weight=cfg_weight,
+                temperature=temperature,
+                repetition_penalty=repetition_penalty,
+                min_p=min_p,
+                top_p=top_p,
+            )

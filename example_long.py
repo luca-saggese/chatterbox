@@ -38,34 +38,24 @@ def main():
         print("Error: The file 'input.txt' was not found.")
         return
 
-
     AUDIO_PROMPT_PATH = "https://storage.googleapis.com/chatterbox-demo-samples/mtl_prompts/it_m1.flac"
     # Download the audio file if it's a URL
     AUDIO_PROMPT_PATH = download_audio_if_needed(AUDIO_PROMPT_PATH)
     
     model = ChatterboxMultilingualTTS.from_pretrained(device="cuda")
-    # Split the text into sentences using regular expressions
-    #sentences = re.split(r'[!.?]+', text)
-    sentences = re.split(r'[\.\!\?\n]', text)
-    filtered_sentences = [s.strip() for s in sentences if s.strip()]
-    i=0
-    combined_audio=None
-    # Call the speak function for each sentence
-    for sentence in filtered_sentences:
-
-        wav = model.generate(sentence, language_id="it", audio_prompt_path=AUDIO_PROMPT_PATH)
-        filename = "test-" + str(i) + ".wav"
-
-        #if i!=0:
-        if combined_audio is None:
-            combined_audio= wav # Initialize with the first audio tensor
-        else:
-            combined_audio = torch.cat((combined_audio,wav),dim=1)
-
-        ta.save(filename, wav, model.sr)
-        i+=1
-
-    ta.save("out.wav", combined_audio, model.sr)
+    
+    # Now the model handles sentence splitting and concatenation automatically!
+    # Just pass the entire text with auto_split=True (default)
+    wav = model.generate(
+        text, 
+        language_id="it", 
+        audio_prompt_path=AUDIO_PROMPT_PATH,
+        auto_split=True  # This is the default, splits automatically
+    )
+    
+    # Save the combined audio
+    ta.save("out.wav", wav, model.sr)
+    print("Audio saved to out.wav")
 
 if __name__ == "__main__":
     main()
