@@ -336,7 +336,14 @@ class MTLTokenizer:
         return text_tokens
 
     def encode(self, txt: str, language_id: str = None, lowercase: bool = True, nfkd_normalize: bool = True):
-        txt = self.preprocess_text(txt, language_id=language_id, lowercase=lowercase, nfkd_normalize=nfkd_normalize)
+        # For Italian, skip NFKD normalization as italian_normalize handles it specifically
+        if language_id == 'it':
+            # Apply only lowercase, skip NFKD for Italian
+            txt = self.preprocess_text(txt, language_id=language_id, lowercase=lowercase, nfkd_normalize=False)
+            txt = italian_normalize(txt)
+        else:
+            # For other languages, apply standard preprocessing
+            txt = self.preprocess_text(txt, language_id=language_id, lowercase=lowercase, nfkd_normalize=nfkd_normalize)
         
         # Language-specific text processing
         if language_id == 'zh':
@@ -347,8 +354,6 @@ class MTLTokenizer:
             txt = add_hebrew_diacritics(txt)
         elif language_id == 'ko':
             txt = korean_normalize(txt)
-        elif language_id == 'it':
-            txt = italian_normalize(txt)
         elif language_id == 'ru':
             txt = add_russian_stress(txt)
         
