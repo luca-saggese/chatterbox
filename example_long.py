@@ -49,6 +49,8 @@ def main():
     # Just pass the entire text with auto_split=True (default)
     wav = model.generate(
         text, 
+        cfg_weight=0.2,
+        exaggeration=1.5,
         language_id="it", 
         audio_prompt_path=AUDIO_PROMPT_PATH,
         auto_split=True  # This is the default, splits automatically
