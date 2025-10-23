@@ -283,6 +283,64 @@ class ChatterboxMultilingualTTS:
         
         return chunks
     
+    def _split_into_adaptive_chunks(self, text: str, target_chars: int = 800) -> list[str]:
+        """
+        Split text into chunks dynamically based on character count.
+        Groups sentences together until reaching the target character count.
+        This maintains narrative context while optimizing generation efficiency.
+        
+        Args:
+            text: Input text to split
+            target_chars: Target character count per chunk (default: 800)
+                         Ideal range: 600-1000 chars (~3-5 sentences)
+            
+        Returns:
+            List of text chunks, each approximately target_chars length
+            
+        Examples:
+            >>> text = "First sentence. Second sentence. Third sentence. Fourth."
+            >>> chunks = _split_into_adaptive_chunks(text, target_chars=50)
+            >>> # Returns chunks of ~50 chars each, grouping sentences naturally
+        """
+        # First split into sentences
+        sentences = self._split_into_sentences(text)
+        
+        if not sentences:
+            return []
+        
+        chunks = []
+        current_chunk = []
+        current_length = 0
+        
+        for sentence in sentences:
+            sentence_length = len(sentence)
+            
+            # If adding this sentence would exceed target significantly (by 50%)
+            # and we already have some content, start a new chunk
+            if current_chunk and (current_length + sentence_length) > target_chars * 1.5:
+                # Save current chunk
+                chunks.append('. '.join(current_chunk) + '.')
+                # Start new chunk with current sentence
+                current_chunk = [sentence]
+                current_length = sentence_length
+            else:
+                # Add sentence to current chunk
+                current_chunk.append(sentence)
+                current_length += sentence_length
+                
+                # If we've reached or exceeded target, start new chunk
+                # (but continue if we have less than 2 sentences to avoid tiny chunks)
+                if current_length >= target_chars and len(current_chunk) >= 2:
+                    chunks.append('. '.join(current_chunk) + '.')
+                    current_chunk = []
+                    current_length = 0
+        
+        # Add remaining sentences if any
+        if current_chunk:
+            chunks.append('. '.join(current_chunk) + '.')
+        
+        return chunks
+    
     def _estimate_token_count(self, text: str, language_id: str = "en") -> int:
         """
         Estimate the number of tokens a text will generate.
@@ -397,10 +455,11 @@ class ChatterboxMultilingualTTS:
         min_p=0.05,
         top_p=1.0,
         auto_split=True,
-        split_mode="sentences",  # NEW: "sentences", "paragraphs", "chunks", or None
-        chunk_size=3,  # NEW: sentences per chunk when split_mode="chunks"
+        split_mode="adaptive",  # "sentences", "paragraphs", "chunks", "adaptive", or None
+        chunk_size=3,  # sentences per chunk when split_mode="chunks"
+        target_chars=800,  # NEW: target characters per chunk when split_mode="adaptive"
         sentence_pause_ms=400,
-        max_new_tokens=2000,  # NEW: configurable max tokens
+        max_new_tokens=2000,
     ):
         """
         Generate speech from text.
@@ -416,12 +475,15 @@ class ChatterboxMultilingualTTS:
             min_p: Minimum probability threshold
             top_p: Nucleus sampling threshold
             auto_split: If True, automatically split long text (uses split_mode)
-            split_mode: How to split text - "sentences" (default), "paragraphs", "chunks", or None
+            split_mode: How to split text:
+                        - "adaptive" (default): Groups sentences to reach ~target_chars (best for books)
                         - "sentences": Split by punctuation (good for short texts)
                         - "paragraphs": Split by double newlines (preserves more context)
-                        - "chunks": Group N sentences together (best for narrative)
-                        - None: Generate entire text at once (use with caution for long texts)
+                        - "chunks": Group N sentences together (fixed-size chunks)
+                        - None: Generate entire text at once (use with caution)
             chunk_size: Number of sentences per chunk when split_mode="chunks" (default: 3)
+            target_chars: Target characters per chunk when split_mode="adaptive" (default: 800)
+                         Recommended range: 600-1000 chars for optimal context/efficiency balance
             sentence_pause_ms: Duration of pause between segments in milliseconds (default: 400ms)
             max_new_tokens: Maximum tokens to generate per segment (default: 2000)
         
@@ -462,6 +524,13 @@ class ChatterboxMultilingualTTS:
             elif split_mode == "chunks":
                 segments = self._split_into_chunks(text, max_sentences_per_chunk=chunk_size)
                 segment_type = f"{chunk_size}-sentence chunks"
+            elif split_mode == "adaptive":
+                segments = self._split_into_adaptive_chunks(text, target_chars=target_chars)
+                segment_type = f"adaptive chunks (~{target_chars} chars)"
+                # Log chunk sizes for verification
+                chunk_sizes = [len(seg) for seg in segments]
+                avg_size = sum(chunk_sizes) / len(chunk_sizes) if chunk_sizes else 0
+                print(f"📊 Chunk stats: {len(segments)} chunks, avg {avg_size:.0f} chars, range {min(chunk_sizes) if chunk_sizes else 0}-{max(chunk_sizes) if chunk_sizes else 0} chars")
             else:
                 # Invalid split_mode, treat as no split
                 segments = [text]
