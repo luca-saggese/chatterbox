@@ -360,8 +360,8 @@ class ChatterboxMultilingualTTS:
             print(f"Auto-splitting text into {len(sentences)} sentences...")
             combined_audio = None
             
-            # Calculate pause duration (200ms is natural for sentence breaks)
-            pause_duration_ms = 200
+            # Calculate pause duration (400ms is natural for sentence breaks)
+            pause_duration_ms = 400
             pause_samples = int(self.sr * pause_duration_ms / 1000)
             silence_pause = torch.zeros(1, pause_samples)
             
