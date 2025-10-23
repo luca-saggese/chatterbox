@@ -122,7 +122,7 @@ class TTSRequest(BaseModel):
     text: str = Field(..., description="Text to convert to speech", min_length=1, max_length=1000000)  # Increased to 1M chars (~400 pages)
     language_id: str = Field(default="it", description=f"Language code. Supported: {', '.join(SUPPORTED_LANGUAGES.keys())}")
     audio_prompt_path: Optional[str] = Field(default=None, description="Path to reference audio file for voice cloning")
-    cfg_weight: float = Field(default=0.2, ge=0.0, le=1.0, description="Classifier-free guidance weight (0.0-1.0)")
+    cfg_weight: float = Field(default=1.0, ge=0.0, le=1.0, description="Classifier-free guidance weight (0.0-1.0)")
     exaggeration: float = Field(default=1.5, ge=0.5, le=3.0, description="Exaggeration factor for expressiveness (0.5-3.0)")
     temperature: float = Field(default=0.8, ge=0.1, le=2.0, description="Sampling temperature (0.1-2.0)")
     repetition_penalty: float = Field(default=1.2, ge=1.0, le=2.0, description="Repetition penalty (1.0-2.0)")
