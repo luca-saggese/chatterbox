@@ -231,6 +231,35 @@ class ChatterboxMultilingualTTS:
         ).to(device=self.device)
         self.conds = Conditionals(t3_cond, s3gen_ref_dict)
 
+    def _clean_markdown(self, text: str) -> str:
+        """
+        Remove Markdown formatting from text before TTS generation.
+        Converts Markdown to plain text while preserving content.
+        
+        Args:
+            text: Input text with potential Markdown formatting
+            
+        Returns:
+            Clean text without Markdown syntax
+        """
+        # Remove Markdown headers (# ## ###)
+        text = re.sub(r'^#{1,6}\s+', '', text, flags=re.MULTILINE)
+        
+        # Remove bold/italic markers (**text** or *text*)
+        text = re.sub(r'\*\*([^\*]+)\*\*', r'\1', text)
+        text = re.sub(r'\*([^\*]+)\*', r'\1', text)
+        
+        # Remove inline code (`code`)
+        text = re.sub(r'`([^`]+)`', r'\1', text)
+        
+        # Remove links [text](url)
+        text = re.sub(r'\[([^\]]+)\]\([^\)]+\)', r'\1', text)
+        
+        # Replace multiple newlines with double newline (preserve paragraphs)
+        text = re.sub(r'\n{3,}', '\n\n', text)
+        
+        return text.strip()
+    
     def _split_into_sentences(self, text: str) -> list[str]:
         """Split text into sentences using common punctuation marks."""
         # Split by sentence-ending punctuation and newlines
@@ -286,21 +315,22 @@ class ChatterboxMultilingualTTS:
     def _split_into_adaptive_chunks(self, text: str, target_chars: int = 800) -> list[str]:
         """
         Split text into chunks dynamically based on character count.
-        Groups sentences together until reaching the target character count.
+        Groups sentences together until reaching the target character count WITHOUT EXCEEDING IT.
         This maintains narrative context while optimizing generation efficiency.
         
         Args:
             text: Input text to split
-            target_chars: Target character count per chunk (default: 800)
-                         Ideal range: 600-1000 chars (~3-5 sentences)
+            target_chars: Maximum character count per chunk (default: 800)
+                         Each chunk will have UP TO target_chars, never exceeding it
             
         Returns:
-            List of text chunks, each approximately target_chars length
+            List of text chunks, each <= target_chars length
             
         Examples:
             >>> text = "First sentence. Second sentence. Third sentence. Fourth."
             >>> chunks = _split_into_adaptive_chunks(text, target_chars=50)
-            >>> # Returns chunks of ~50 chars each, grouping sentences naturally
+            >>> # Returns chunks where each chunk <= 50 chars
+            >>> # Sentences are grouped until adding another would exceed limit
         """
         # First split into sentences
         sentences = self._split_into_sentences(text)
@@ -315,25 +345,26 @@ class ChatterboxMultilingualTTS:
         for sentence in sentences:
             sentence_length = len(sentence)
             
-            # If adding this sentence would exceed target significantly (by 50%)
-            # and we already have some content, start a new chunk
-            if current_chunk and (current_length + sentence_length) > target_chars * 1.5:
-                # Save current chunk
-                chunks.append('. '.join(current_chunk) + '.')
-                # Start new chunk with current sentence
-                current_chunk = [sentence]
-                current_length = sentence_length
-            else:
-                # Add sentence to current chunk
-                current_chunk.append(sentence)
-                current_length += sentence_length
-                
-                # If we've reached or exceeded target, start new chunk
-                # (but continue if we have less than 2 sentences to avoid tiny chunks)
-                if current_length >= target_chars and len(current_chunk) >= 2:
+            # Check if adding this sentence would exceed the target
+            # We add +2 for ". " separator between sentences
+            separator_length = 2 if current_chunk else 0
+            new_total = current_length + separator_length + sentence_length
+            
+            if new_total > target_chars:
+                # Would exceed target, save current chunk first (if not empty)
+                if current_chunk:
                     chunks.append('. '.join(current_chunk) + '.')
                     current_chunk = []
                     current_length = 0
+                
+                # Start new chunk with current sentence
+                # If single sentence exceeds target, we still add it (can't split sentences)
+                current_chunk = [sentence]
+                current_length = sentence_length
+            else:
+                # Safe to add this sentence to current chunk
+                current_chunk.append(sentence)
+                current_length = new_total
         
         # Add remaining sentences if any
         if current_chunk:
@@ -498,6 +529,13 @@ class ChatterboxMultilingualTTS:
                 f"Supported languages: {supported_langs}"
             )
         
+        # Clean Markdown formatting before processing
+        original_length = len(text)
+        text = self._clean_markdown(text)
+        cleaned_length = len(text)
+        if cleaned_length < original_length:
+            print(f"🧹 Cleaned Markdown formatting: {original_length} → {cleaned_length} characters")
+        
         if audio_prompt_path:
             self.prepare_conditionals(audio_prompt_path, exaggeration=exaggeration)
         else:
@@ -514,30 +552,53 @@ class ChatterboxMultilingualTTS:
 
         # Auto-split text into segments if enabled
         if auto_split and split_mode:
+            print(f"\n{'='*60}")
+            print(f"🔤 Text Splitting Configuration")
+            print(f"{'='*60}")
+            print(f"Split mode: {split_mode}")
+            print(f"Text length: {len(text)} characters")
+            
             # Choose splitting method based on split_mode
             if split_mode == "sentences":
+                print(f"📍 Splitting by individual sentences...")
                 segments = self._split_into_sentences(text)
                 segment_type = "sentences"
             elif split_mode == "paragraphs":
+                print(f"📄 Splitting by paragraphs (double newlines)...")
                 segments = self._split_into_paragraphs(text)
                 segment_type = "paragraphs"
             elif split_mode == "chunks":
+                print(f"📦 Splitting into fixed chunks of {chunk_size} sentences each...")
                 segments = self._split_into_chunks(text, max_sentences_per_chunk=chunk_size)
                 segment_type = f"{chunk_size}-sentence chunks"
             elif split_mode == "adaptive":
+                print(f"🎯 Adaptive splitting with target of {target_chars} chars per chunk...")
+                print(f"   (Will never exceed {target_chars} chars, concatenating sentences optimally)")
                 segments = self._split_into_adaptive_chunks(text, target_chars=target_chars)
-                segment_type = f"adaptive chunks (~{target_chars} chars)"
+                segment_type = f"adaptive chunks (max {target_chars} chars)"
                 # Log chunk sizes for verification
                 chunk_sizes = [len(seg) for seg in segments]
                 avg_size = sum(chunk_sizes) / len(chunk_sizes) if chunk_sizes else 0
-                print(f"📊 Chunk stats: {len(segments)} chunks, avg {avg_size:.0f} chars, range {min(chunk_sizes) if chunk_sizes else 0}-{max(chunk_sizes) if chunk_sizes else 0} chars")
+                min_size = min(chunk_sizes) if chunk_sizes else 0
+                max_size = max(chunk_sizes) if chunk_sizes else 0
+                print(f"\n📊 Chunk Statistics:")
+                print(f"   Total chunks: {len(segments)}")
+                print(f"   Average size: {avg_size:.0f} chars")
+                print(f"   Size range: {min_size}-{max_size} chars")
+                print(f"   Target was: {target_chars} chars (max limit)")
+                if max_size > target_chars:
+                    print(f"   ⚠️  Note: {max_size} > {target_chars} because single sentence exceeds limit")
             else:
                 # Invalid split_mode, treat as no split
+                print(f"⚠️  Unknown split_mode '{split_mode}', processing as full text...")
                 segments = [text]
                 segment_type = "full text"
             
+            print(f"{'='*60}\n")
+            
             # If only one segment or text is short, generate directly
             if len(segments) <= 1:
+                print(f"ℹ️  Only 1 segment detected, generating directly without concatenation...\n")
                 return self._generate_single(
                     text=text,
                     language_id=language_id,
@@ -555,16 +616,15 @@ class ChatterboxMultilingualTTS:
             if estimated_tokens > max_new_tokens and split_mode == "chunks":
                 print(f"⚠️  Warning: Text may exceed max_new_tokens ({max_new_tokens}). Consider increasing it or using smaller chunks.")
             
-            # Generate audio for each segment and concatenate with pauses
-            print(f"Splitting text into {len(segments)} {segment_type}...")
-            combined_audio = None
-            
-            # Calculate pause duration
+            # Calculate pause duration BEFORE using it
             pause_duration_ms = self._get_sentence_pause_duration(text, default_ms=sentence_pause_ms)
             pause_samples = int(self.sr * pause_duration_ms / 1000)
             silence_pause = torch.zeros(1, pause_samples)
             
-            print(f"Using {pause_duration_ms}ms pause between segments")
+            # Generate audio for each segment and concatenate with pauses
+            print(f"🎙️  Starting generation of {len(segments)} {segment_type}...")
+            print(f"Pause between segments: {pause_duration_ms}ms\n")
+            combined_audio = None
             
             for i, segment in enumerate(segments):
                 # Show preview of segment (truncate if too long)
@@ -588,11 +648,24 @@ class ChatterboxMultilingualTTS:
                     # Add a natural pause between segments
                     combined_audio = torch.cat((combined_audio, silence_pause, wav), dim=1)
             
-            print("Audio generation complete.")
+            print("\n✅ Audio generation complete.\n")
             return combined_audio
         else:
             # Generate without splitting
-            print(f"Generating entire text as one segment (max_new_tokens={max_new_tokens})")
+            print(f"\n{'='*60}")
+            print(f"🔤 Text Splitting: DISABLED")
+            print(f"{'='*60}")
+            print(f"Text length: {len(text)} characters")
+            print(f"Mode: Single-pass generation")
+            print(f"Max tokens: {max_new_tokens}")
+            if len(text) > 1000:
+                print(f"⚠️  Warning: Long text ({len(text)} chars) without splitting may:")
+                print(f"   - Take longer to generate")
+                print(f"   - Risk exceeding max_new_tokens")
+                print(f"   - Lose narrative context consistency")
+                print(f"   Consider using auto_split=True with split_mode='adaptive'")
+            print(f"{'='*60}\n")
+            
             return self._generate_single(
                 text=text,
                 language_id=language_id,
