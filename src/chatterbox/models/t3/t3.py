@@ -330,6 +330,10 @@ class T3(nn.Module):
         # Initialize kv_cache with the full context.
         past = output.past_key_values
 
+        # Track the initial sequence length (conditioning + text + BOS)
+        # This is crucial for correct positional embeddings during generation
+        initial_seq_len = inputs_embeds.size(1)
+
         # ---- Generation Loop using kv_cache ----
         for i in tqdm(range(max_new_tokens), desc="Sampling", dynamic_ncols=True):
             logits_step = output.logits[:, -1, :]                
@@ -371,9 +375,12 @@ class T3(nn.Module):
                 logger.info(f"✅ EOS token detected! Stopping generation at step {i+1}")
                 break
 
-            # Get embedding for the new token.
+            # Get embedding for the new token with CORRECT positional embedding
+            # Position should be: initial_seq_len (cond+text+BOS) + current_step
+            # This ensures positional embeddings stay aligned throughout generation
+            current_position = initial_seq_len + i
             next_token_embed = self.speech_emb(next_token)
-            next_token_embed = next_token_embed + self.speech_pos_emb.get_fixed_embedding(i + 1)
+            next_token_embed = next_token_embed + self.speech_pos_emb.get_fixed_embedding(current_position)
 
             #  For CFG
             next_token_embed = torch.cat([next_token_embed, next_token_embed])

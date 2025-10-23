@@ -109,9 +109,13 @@ class AlignmentStreamAnalyzer:
         A = self.alignment
         T, S = A.shape
 
-        # update position
+        # update position with better smoothing to prevent erratic jumps
         cur_text_posn = A_chunk[-1].argmax()
-        discontinuity = not(-4 < cur_text_posn - self.text_position < 7) # NOTE: very lenient!
+        # FIXED: More lenient discontinuity check for long sequences
+        # Allow larger jumps to account for spaces, punctuation, and model uncertainty
+        max_backward_jump = min(4, 2 + T // 200)
+        max_forward_jump = min(10, 7 + T // 100)
+        discontinuity = not(-max_backward_jump < cur_text_posn - self.text_position < max_forward_jump)
         if not discontinuity:
             self.text_position = cur_text_posn
 
@@ -133,10 +137,15 @@ class AlignmentStreamAnalyzer:
         last_text_token_duration = A[15:, -3:].sum()
 
         # Activations for the final token that last too long are likely hallucinations.
-        long_tail = self.complete and (A[self.completed_at:, -3:].sum(dim=0).max() >= 5) # 200ms
+        # FIXED: Be more lenient with long sequences to prevent premature acceleration
+        # Increase threshold proportionally with sequence length to avoid false positives
+        long_tail_threshold = min(10, 5 + T // 200)  # Scale threshold: 5 frames base, +1 per 200 frames
+        long_tail = self.complete and (A[self.completed_at:, -3:].sum(dim=0).max() >= long_tail_threshold)
 
         # If there are activations in previous tokens after generation has completed, assume this is a repetition error.
-        alignment_repetition = self.complete and (A[self.completed_at:, :-5].max(dim=1).values.sum() > 5)
+        # FIXED: Also scale this threshold for long sequences
+        repetition_threshold = min(10, 5 + T // 200)
+        alignment_repetition = self.complete and (A[self.completed_at:, :-5].max(dim=1).values.sum() > repetition_threshold)
         
         # Track generated tokens for repetition detection
         if next_token is not None:
