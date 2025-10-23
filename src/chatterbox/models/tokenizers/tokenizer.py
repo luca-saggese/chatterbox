@@ -314,18 +314,9 @@ class MTLTokenizer:
     def encode(self, txt: str, language_id: str = None, lowercase: bool = True, nfkd_normalize: bool = True):
         # For Italian, apply custom normalization BEFORE any preprocessing
         if language_id == 'it':
-            print(f"🇮🇹 [ITALIAN] RAW text: '{txt[:80]}'")
-            print(f"🇮🇹 [ITALIAN] RAW accented chars: {[(c, f'U+{ord(c):04X}') for c in txt if ord(c) in [224,232,233,236,242,249,192,200,201,204,210,217]]}")
-            
-            # Apply italian_normalize FIRST, before lowercase
             txt = italian_normalize(txt)
-            print(f"🇮🇹 [ITALIAN] After italian_normalize: '{txt[:80]}'")
-            
-            # Then apply only lowercase (NO NFKD!)
             if lowercase:
                 txt = txt.lower()
-            print(f"🇮🇹 [ITALIAN] After lowercase: '{txt[:80]}'")
-            print(f"🇮🇹 [ITALIAN] Final combining chars: {[(i, c, f'U+{ord(c):04X}') for i, c in enumerate(txt[:80]) if 0x0300 <= ord(c) <= 0x036F]}")
         else:
             # For other languages, apply standard preprocessing
             txt = self.preprocess_text(txt, language_id=language_id, lowercase=lowercase, nfkd_normalize=nfkd_normalize)
