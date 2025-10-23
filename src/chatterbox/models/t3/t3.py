@@ -298,9 +298,13 @@ class T3(nn.Module):
 
         device = embeds.device
 
+        # BOS token position should be after conditioning and text embeddings
+        # This is the starting position of the speech sequence
+        bos_position = embeds.size(1)  # Position after [cond + text]
+        
         bos_token = torch.tensor([[self.hp.start_speech_token]], dtype=torch.long, device=device)
         bos_embed = self.speech_emb(bos_token)  # shape: (B, 1, embed_dim)
-        bos_embed = bos_embed + self.speech_pos_emb.get_fixed_embedding(0)
+        bos_embed = bos_embed + self.speech_pos_emb.get_fixed_embedding(bos_position)
 
         # batch_size=2 for CFG
         bos_embed = torch.cat([bos_embed, bos_embed])
@@ -332,6 +336,7 @@ class T3(nn.Module):
 
         # Track the initial sequence length (conditioning + text + BOS)
         # This is crucial for correct positional embeddings during generation
+        # After BOS, the next token will be at position: bos_position + 1
         initial_seq_len = inputs_embeds.size(1)
 
         # ---- Generation Loop using kv_cache ----
