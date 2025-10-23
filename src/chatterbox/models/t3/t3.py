@@ -78,7 +78,11 @@ class T3(nn.Module):
         Token cond data needs to be embedded, so that needs to be here instead of in `T3CondEnc`.
         """
         if t3_cond.cond_prompt_speech_tokens is not None and t3_cond.cond_prompt_speech_emb is None:
-            t3_cond.cond_prompt_speech_emb = self.speech_emb(t3_cond.cond_prompt_speech_tokens) + \
+            # Embed the tokens first
+            t3_cond.cond_prompt_speech_emb = self.speech_emb(t3_cond.cond_prompt_speech_tokens)
+            # Add positional embeddings using the forward() method which creates positions 0..N
+            # NOT passing token IDs directly (which would use wrong positions for longer prompts)
+            t3_cond.cond_prompt_speech_emb = t3_cond.cond_prompt_speech_emb + \
                 self.speech_pos_emb(t3_cond.cond_prompt_speech_tokens)
         return self.cond_enc(t3_cond)  # (B, len_cond, dim)
 
@@ -298,9 +302,10 @@ class T3(nn.Module):
 
         device = embeds.device
 
-        # BOS token position should be after conditioning and text embeddings
-        # This is the starting position of the speech sequence
-        bos_position = embeds.size(1)  # Position after [cond + text]
+        # BOS token position for SPEECH should start at 0
+        # Speech tokens have their own positional embedding space, independent of conditioning/text length
+        # This prevents longer reference audio from causing faster speech generation
+        bos_position = 0
         
         bos_token = torch.tensor([[self.hp.start_speech_token]], dtype=torch.long, device=device)
         bos_embed = self.speech_emb(bos_token)  # shape: (B, 1, embed_dim)
@@ -335,10 +340,10 @@ class T3(nn.Module):
         # Initialize kv_cache with the full context.
         past = output.past_key_values
 
-        # Track the initial sequence length (conditioning + text + BOS)
-        # This is crucial for correct positional embeddings during generation
-        # After BOS, the next token will be at position: bos_position + 1
-        initial_seq_len = inputs_embeds.size(1)
+        # Track speech generation position independently
+        # Speech positional embeddings are independent of conditioning/text length
+        # BOS is at position 0, next token will be at position 1
+        speech_position = bos_position
 
         # ---- Generation Loop using kv_cache ----
         for i in tqdm(range(max_new_tokens), desc="Sampling", dynamic_ncols=True):
@@ -385,9 +390,9 @@ class T3(nn.Module):
                 break
 
             # Get embedding for the new token with CORRECT positional embedding
-            # Position should be: initial_seq_len (cond+text+BOS) + current_step
-            # This ensures positional embeddings stay aligned throughout generation
-            current_position = initial_seq_len + i
+            # Speech positions are independent: BOS=0, then 1, 2, 3, etc.
+            # This prevents reference audio length from affecting generation speed
+            current_position = speech_position + 1 + i
             next_token_embed = self.speech_emb(next_token)
             next_token_embed = next_token_embed + self.speech_pos_emb.get_fixed_embedding(current_position)
 
