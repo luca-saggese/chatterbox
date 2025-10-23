@@ -55,7 +55,10 @@ else
 fi
 
 # === 3️⃣ Taglia il file ===
-output="cut_${INPUT%.*}.mp3"
+# Extract directory and filename separately to build correct output path
+input_dir=$(dirname "$INPUT")
+input_name=$(basename "$INPUT" .mp3)
+output="${input_dir}/cut_${input_name}.mp3"
 echo "✂️  Taglio da ${real_start}s a ${real_end}s → $output"
 ffmpeg -hide_banner -loglevel error -i "$INPUT" -ss "$real_start" -to "$real_end" -c copy "$output"
 
