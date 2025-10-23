@@ -45,15 +45,19 @@ def main():
     
     model = ChatterboxMultilingualTTS.from_pretrained(device="cuda")
     
-    # Now the model handles sentence splitting and concatenation automatically!
-    # Just pass the entire text with auto_split=True (default)
+    # The model handles text splitting automatically!
+    # Use split_mode="adaptive" for books - groups sentences to ~800 chars
+    # This maintains narrative context while optimizing generation
     wav = model.generate(
         text, 
         cfg_weight=0.2,
         exaggeration=1.5,
         language_id="it", 
         audio_prompt_path=AUDIO_PROMPT_PATH,
-        auto_split=True  # This is the default, splits automatically
+        auto_split=True,  # Enable automatic splitting
+        split_mode="adaptive",  # Adaptive chunking by character count (best for books)
+        target_chars=800,  # Target ~800 chars per chunk (3-5 sentences)
+        max_new_tokens=2000  # Increase if needed for longer chunks
     )
     
     # Save the combined audio
