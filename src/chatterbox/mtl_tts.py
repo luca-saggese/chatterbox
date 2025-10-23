@@ -425,6 +425,41 @@ class ChatterboxMultilingualTTS:
         # average 300-600ms in natural speech, with 400ms being most common
         return default_ms
 
+    def warmup_model(self, sample_text: str = "Questo è un test di riscaldamento del modello.", language_id: str = "it"):
+        """
+        Warm up the model with a short generation to optimize subsequent calls.
+        
+        The first inference is often slower due to CUDA initialization and model loading.
+        This method runs a quick generation to "prime" the model for faster subsequent calls.
+        
+        Args:
+            sample_text: Short text for warm-up generation (default: Italian test sentence)
+            language_id: Language for warm-up (default: "it")
+        """
+        if not hasattr(self, '_model_warmed') or not self._model_warmed:
+            print("🔥 Warming up model for optimal performance...")
+            
+            # Ensure we have conditionals
+            if self.conds is None:
+                print("⚠️  Cannot warm up: no conditionals loaded. Call prepare_conditionals() first.")
+                return
+            
+            import time
+            start_time = time.time()
+            
+            # Run a small generation to warm up CUDA kernels
+            _ = self._generate_single(
+                text=sample_text,
+                language_id=language_id,
+                max_new_tokens=100,  # Keep it small for speed
+            )
+            
+            warmup_time = time.time() - start_time
+            self._model_warmed = True
+            print(f"✅ Model warmed up in {warmup_time:.2f}s - subsequent generations will be faster!")
+        else:
+            print("⚡ Model already warmed up - skipping warm-up")
+
     def _generate_single(
         self,
         text,
@@ -536,19 +571,39 @@ class ChatterboxMultilingualTTS:
         if cleaned_length < original_length:
             print(f"🧹 Cleaned Markdown formatting: {original_length} → {cleaned_length} characters")
         
+        # Prepare conditionals only if needed (performance optimization)
         if audio_prompt_path:
-            self.prepare_conditionals(audio_prompt_path, exaggeration=exaggeration)
+            # Check if we need to reload conditionals (different file or exaggeration)
+            need_reload = (
+                not hasattr(self, '_last_prompt_path') or 
+                self._last_prompt_path != audio_prompt_path or
+                not hasattr(self, '_last_exaggeration') or 
+                abs(self._last_exaggeration - exaggeration) > 0.01
+            )
+            
+            if need_reload:
+                print("🔄 Loading new audio conditioning...")
+                self.prepare_conditionals(audio_prompt_path, exaggeration=exaggeration)
+                self._last_prompt_path = audio_prompt_path
+                self._last_exaggeration = exaggeration
+            else:
+                print("⚡ Reusing cached audio conditioning for faster generation")
         else:
             assert self.conds is not None, "Please `prepare_conditionals` first or specify `audio_prompt_path`"
+            
+            # Update exaggeration if needed
+            if float(exaggeration) != float(self.conds.t3.emotion_adv[0, 0, 0].item()):
+                print("🔧 Updating exaggeration parameter...")
+                _cond: T3Cond = self.conds.t3
+                self.conds.t3 = T3Cond(
+                    speaker_emb=_cond.speaker_emb,
+                    cond_prompt_speech_tokens=_cond.cond_prompt_speech_tokens,
+                    emotion_adv=exaggeration * torch.ones(1, 1, 1),
+                ).to(device=self.device)
 
-        # Update exaggeration if needed
-        if float(exaggeration) != float(self.conds.t3.emotion_adv[0, 0, 0].item()):
-            _cond: T3Cond = self.conds.t3
-            self.conds.t3 = T3Cond(
-                speaker_emb=_cond.speaker_emb,
-                cond_prompt_speech_tokens=_cond.cond_prompt_speech_tokens,
-                emotion_adv=exaggeration * torch.ones(1, 1, 1),
-            ).to(device=self.device)
+        # Warm up model for optimal performance (especially for multi-segment generation)
+        if auto_split and split_mode:
+            self.warmup_model(language_id=language_id)
 
         # Auto-split text into segments if enabled
         if auto_split and split_mode:
@@ -616,20 +671,28 @@ class ChatterboxMultilingualTTS:
             if estimated_tokens > max_new_tokens and split_mode == "chunks":
                 print(f"⚠️  Warning: Text may exceed max_new_tokens ({max_new_tokens}). Consider increasing it or using smaller chunks.")
             
-            # Calculate pause duration BEFORE using it
+            # Pre-allocate silence buffer for performance (avoid repeated tensor creation)
             pause_duration_ms = self._get_sentence_pause_duration(text, default_ms=sentence_pause_ms)
             pause_samples = int(self.sr * pause_duration_ms / 1000)
-            silence_pause = torch.zeros(1, pause_samples)
+            silence_pause = torch.zeros(1, pause_samples, dtype=torch.float32)
+            print(f"⚡ Pre-allocated silence buffer: {pause_samples} samples ({pause_duration_ms}ms)")
             
-            # Generate audio for each segment and concatenate with pauses
+            # Generate audio for each segment and collect for efficient concatenation
             print(f"🎙️  Starting generation of {len(segments)} {segment_type}...")
             print(f"Pause between segments: {pause_duration_ms}ms\n")
-            combined_audio = None
+            
+            # Use list for efficient concatenation (avoids repeated tensor copies)
+            audio_chunks = []
+            
+            import time
+            total_start_time = time.time()
             
             for i, segment in enumerate(segments):
                 # Show preview of segment (truncate if too long)
                 preview = segment[:80] + "..." if len(segment) > 80 else segment
-                print(f"Generating segment {i+1}/{len(segments)}: {preview}")
+                
+                segment_start = time.time()
+                print(f"⚡ [{i+1}/{len(segments)}] Generating: {preview}")
                 
                 wav = self._generate_single(
                     text=segment,
@@ -642,13 +705,32 @@ class ChatterboxMultilingualTTS:
                     max_new_tokens=max_new_tokens,
                 )
                 
-                if combined_audio is None:
-                    combined_audio = wav
-                else:
-                    # Add a natural pause between segments
-                    combined_audio = torch.cat((combined_audio, silence_pause, wav), dim=1)
+                segment_time = time.time() - segment_start
+                audio_duration = wav.shape[1] / self.sr
+                speed_ratio = audio_duration / segment_time
+                
+                print(f"   ✅ Done in {segment_time:.1f}s (generated {audio_duration:.1f}s audio, {speed_ratio:.1f}x realtime)")
+                
+                audio_chunks.append(wav)
+                
+                # Add pause between segments (except after last segment)
+                if i < len(segments) - 1:
+                    audio_chunks.append(silence_pause)
             
-            print("\n✅ Audio generation complete.\n")
+            # Single efficient concatenation at the end
+            concat_start = time.time()
+            print("🔧 Concatenating audio segments...")
+            combined_audio = torch.cat(audio_chunks, dim=1)
+            concat_time = time.time() - concat_start
+            
+            total_time = time.time() - total_start_time
+            final_duration = combined_audio.shape[1] / self.sr
+            overall_speed = final_duration / total_time
+            
+            print(f"✅ Audio generation complete!")
+            print(f"   📊 Total time: {total_time:.1f}s | Audio duration: {final_duration:.1f}s")
+            print(f"   🚀 Overall speed: {overall_speed:.1f}x realtime | Concatenation: {concat_time:.2f}s\n")
+            
             return combined_audio
         else:
             # Generate without splitting
