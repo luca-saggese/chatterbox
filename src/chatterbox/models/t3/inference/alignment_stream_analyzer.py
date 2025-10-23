@@ -165,8 +165,9 @@ class AlignmentStreamAnalyzer:
                 self.generated_tokens = self.generated_tokens[-8:]
             
         # Check for excessive token repetition (3x same token in a row)
+        # Only check AFTER text is complete to avoid cutting off natural speech patterns
         token_repetition = (
-            # self.complete and 
+            self.complete and 
             len(self.generated_tokens) >= 3 and
             len(set(self.generated_tokens[-2:])) == 1
         )
