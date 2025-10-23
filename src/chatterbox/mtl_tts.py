@@ -356,9 +356,15 @@ class ChatterboxMultilingualTTS:
                     top_p=top_p,
                 )
             
-            # Generate audio for each sentence and concatenate
+            # Generate audio for each sentence and concatenate with pauses
             print(f"Auto-splitting text into {len(sentences)} sentences...")
             combined_audio = None
+            
+            # Calculate pause duration (200ms is natural for sentence breaks)
+            pause_duration_ms = 200
+            pause_samples = int(self.sr * pause_duration_ms / 1000)
+            silence_pause = torch.zeros(1, pause_samples)
+            
             for i, sentence in enumerate(sentences):
                 print(f"Generating sentence {i+1}/{len(sentences)}: {sentence[:50]}...")
                 wav = self._generate_single(
@@ -374,7 +380,8 @@ class ChatterboxMultilingualTTS:
                 if combined_audio is None:
                     combined_audio = wav
                 else:
-                    combined_audio = torch.cat((combined_audio, wav), dim=1)
+                    # Add a natural pause between sentences
+                    combined_audio = torch.cat((combined_audio, silence_pause, wav), dim=1)
             
             print("Audio generation complete.")
             return combined_audio

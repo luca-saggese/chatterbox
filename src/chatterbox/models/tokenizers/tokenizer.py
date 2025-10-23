@@ -94,10 +94,7 @@ def italian_normalize(text: str) -> str:
     
     # Always decompose Italian accented characters for consistent tokenization
     decomposed_text = "".join(ITALIAN_DECOMPOSE_MAP.get(char, char) for char in text)
-    
-    # Debug: show what was transformed
-    if decomposed_text != text:
-        print(f"🇮🇹 [italian_normalize] Transformed: '{text[:50]}' → '{decomposed_text[:50]}'")
+
     
     return decomposed_text
 
