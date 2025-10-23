@@ -252,6 +252,11 @@ class ChatterboxMultilingualTTS:
         """Generate audio for a single sentence/text chunk."""
         # Norm and tokenize text
         text = punc_norm(text)
+        
+        # Debug: print text state before tokenization
+        print(f"📝 [mtl_tts] Text BEFORE tokenizer: '{text[:80]}'")
+        print(f"📝 [mtl_tts] Accented chars: {[f'{c}(U+{ord(c):04X})' for c in text if ord(c) > 127][:10]}")
+        
         text_tokens = self.tokenizer.text_to_tokens(text, language_id=language_id.lower() if language_id else None).to(self.device)
         text_tokens = torch.cat([text_tokens, text_tokens], dim=0)  # Need two seqs for CFG
 

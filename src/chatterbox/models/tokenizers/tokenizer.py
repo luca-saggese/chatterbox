@@ -72,10 +72,11 @@ def is_katakana(c: str) -> bool:
     return 12449 <= ord(c) <= 12538
 
 def italian_normalize(text: str) -> str:
-    """Italian text normalization: ensures proper Unicode normalization for accented characters."""
+    """Italian text normalization: decomposes all Italian accented characters into base letter + combining accent."""
     import unicodedata
     
-    # Mapping of Italian accented characters to decomposed forms (Greek workaround approach)
+    # Mapping of Italian accented characters to decomposed forms
+    # This ensures consistent tokenization for TTS
     ITALIAN_DECOMPOSE_MAP = {
         "à": "a\u0300",  # U+00E0 → U+0061 (a) + U+0300 (combining grave)
         "è": "e\u0300",  # U+00E8 → U+0065 (e) + U+0300 (combining grave)
@@ -91,39 +92,14 @@ def italian_normalize(text: str) -> str:
         "Ù": "U\u0300",  # U+00D9 → U+0055 (U) + U+0300 (combining grave)
     }
     
-    # Try multiple approaches to handle problematic characters
+    # Always decompose Italian accented characters for consistent tokenization
+    decomposed_text = "".join(ITALIAN_DECOMPOSE_MAP.get(char, char) for char in text)
     
-    # Approach 1: Try NFC (Canonical Composition) first - our standard approach
-    try:
-        nfc_text = unicodedata.normalize('NFC', text)
-        # Quick test: if text contains problematic characters, we might need decomposition
-        if any(char in text for char in ['ì', 'Ì']):  # Known problematic characters
-            # Use decomposition approach as fallback for better TTS compatibility
-            decomposed_text = "".join(ITALIAN_DECOMPOSE_MAP.get(char, char) for char in text)
-            logger.debug(f"Using decomposed form for Italian text: '{text}' → '{decomposed_text}'")
-            return decomposed_text
-        return nfc_text
-    except Exception:
-        pass
+    # Debug: show what was transformed
+    if decomposed_text != text:
+        print(f"🇮🇹 [italian_normalize] Transformed: '{text[:50]}' → '{decomposed_text[:50]}'")
     
-    # Approach 2: Try NFD (Canonical Decomposition) as fallback
-    try:
-        nfd_text = unicodedata.normalize('NFD', text)
-        return nfd_text
-    except Exception:
-        pass
-    
-    # Approach 3: Manual decomposition (Greek workaround approach) as last resort
-    try:
-        decomposed_text = "".join(ITALIAN_DECOMPOSE_MAP.get(char, char) for char in text)
-        logger.warning(f"Using manual decomposition for Italian text: '{text}' → '{decomposed_text}'")
-        return decomposed_text
-    except Exception:
-        pass
-    
-    # Fallback: return original text if all normalization attempts fail
-    logger.warning(f"All Italian normalization approaches failed, returning original text: '{text}'")
-    return text
+    return decomposed_text
 
 def hiragana_normalize(text: str) -> str:
     """Japanese text normalization: converts kanji to hiragana; katakana remains the same."""
@@ -336,11 +312,20 @@ class MTLTokenizer:
         return text_tokens
 
     def encode(self, txt: str, language_id: str = None, lowercase: bool = True, nfkd_normalize: bool = True):
-        # For Italian, skip NFKD normalization as italian_normalize handles it specifically
+        # For Italian, apply custom normalization BEFORE any preprocessing
         if language_id == 'it':
-            # Apply only lowercase, skip NFKD for Italian
-            txt = self.preprocess_text(txt, language_id=language_id, lowercase=lowercase, nfkd_normalize=False)
+            print(f"🇮🇹 [ITALIAN] RAW text: '{txt[:80]}'")
+            print(f"🇮🇹 [ITALIAN] RAW accented chars: {[(c, f'U+{ord(c):04X}') for c in txt if ord(c) in [224,232,233,236,242,249,192,200,201,204,210,217]]}")
+            
+            # Apply italian_normalize FIRST, before lowercase
             txt = italian_normalize(txt)
+            print(f"🇮🇹 [ITALIAN] After italian_normalize: '{txt[:80]}'")
+            
+            # Then apply only lowercase (NO NFKD!)
+            if lowercase:
+                txt = txt.lower()
+            print(f"🇮🇹 [ITALIAN] After lowercase: '{txt[:80]}'")
+            print(f"🇮🇹 [ITALIAN] Final combining chars: {[(i, c, f'U+{ord(c):04X}') for i, c in enumerate(txt[:80]) if 0x0300 <= ord(c) <= 0x036F]}")
         else:
             # For other languages, apply standard preprocessing
             txt = self.preprocess_text(txt, language_id=language_id, lowercase=lowercase, nfkd_normalize=nfkd_normalize)
