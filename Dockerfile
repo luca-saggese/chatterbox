@@ -51,7 +51,7 @@ ENV LD_LIBRARY_PATH="$CUDA_HOME/lib64:$LD_LIBRARY_PATH"
 ENV TORCH_CUDA_ARCH_LIST="7.5;8.0;8.6;9.0"
 ENV HF_HOME=/huggingface
 
-RUN pip install fastapi@0.104.0 uvicorn[standard]@0.24.0 pydantic@2.0.0 python-multipart@0.0.6
+RUN pip install fastapi==0.104.0 uvicorn[standard]==0.24.0 pydantic==2.0.0 python-multipart==0.0.6
 
 # Verifica che NVCC sia disponibile
 #RUN nvcc --version
