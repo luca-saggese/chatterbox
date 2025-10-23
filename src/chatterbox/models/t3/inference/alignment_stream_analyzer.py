@@ -100,8 +100,14 @@ class AlignmentStreamAnalyzer:
             # subsequent chunks have 1 frame due to KV-caching
             A_chunk = aligned_attn[:, i:j].clone().cpu() # (1, S)
 
-        # TODO: monotonic masking; could have issue b/c spaces are often skipped.
-        A_chunk[:, self.curr_frame_pos + 1:] = 0
+        # FIXED: Use text_position instead of curr_frame_pos for monotonic masking
+        # curr_frame_pos tracks audio frames, text_position tracks where we are in the text
+        # Only mask future text tokens beyond our current text position, not audio frames
+        if hasattr(self, 'text_position'):
+            # Allow some lookahead for natural prosody (up to 3 tokens ahead)
+            lookahead_tokens = 3
+            mask_start = max(0, self.text_position + lookahead_tokens)
+            A_chunk[:, mask_start:] = 0
 
 
         self.alignment = torch.cat((self.alignment, A_chunk), dim=0)
@@ -111,6 +117,31 @@ class AlignmentStreamAnalyzer:
 
         # update position with better smoothing to prevent erratic jumps
         cur_text_posn = A_chunk[-1].argmax()
+        
+        # IMPROVED: Prevent getting stuck at the same position for too long
+        # Track how long we've been at the same position
+        if not hasattr(self, 'position_stuck_counter'):
+            self.position_stuck_counter = 0
+            self.last_text_position = -1
+            
+        if cur_text_posn == self.last_text_position:
+            self.position_stuck_counter += 1
+        else:
+            self.position_stuck_counter = 0
+            self.last_text_position = cur_text_posn
+            
+        # If stuck for too long, force progression (but only if we haven't completed)
+        max_stuck_frames = 15  # Allow staying at same position for max 15 frames (~300ms)
+        if (self.position_stuck_counter > max_stuck_frames and 
+            not self.complete and 
+            cur_text_posn < S - 5):  # Don't force progression near end
+            
+            # Force small progression to unstick
+            forced_position = min(cur_text_posn + 1, S - 1)
+            logger.warning(f"🔧 Position stuck at {cur_text_posn} for {self.position_stuck_counter} frames, forcing progression to {forced_position}")
+            cur_text_posn = forced_position
+            self.position_stuck_counter = 0
+        
         # FIXED: More lenient discontinuity check for long sequences
         # Allow larger jumps to account for spaces, punctuation, and model uncertainty
         max_backward_jump = min(4, 2 + T // 200)
@@ -149,7 +180,34 @@ class AlignmentStreamAnalyzer:
         # If there are activations in previous tokens after generation has completed, assume this is a repetition error.
         # Keep moderate threshold since trimming will clean up minor issues
         repetition_threshold = 5  # Allow some repetition before forcing
-        alignment_repetition = self.complete and (A[self.completed_at:, :-5].max(dim=1).values.sum() > repetition_threshold)
+        
+        # IMPROVED: Better repetition detection based on alignment regression
+        # If the model is attending to text positions significantly behind current position,
+        # it's likely repeating content
+        alignment_regression = False
+        if self.complete and self.curr_frame_pos > 10:  # Only check after some generation
+            # Look at recent attention patterns
+            recent_frames = min(5, A.shape[0] - 1)  # Last 5 frames or available frames
+            if recent_frames > 0:
+                recent_attention = A[-recent_frames:, :]  # (recent_frames, S)
+                # Find where recent frames are attending most strongly
+                recent_max_positions = recent_attention.argmax(dim=1)  # (recent_frames,)
+                
+                # Check if we're attending to positions significantly behind text_position
+                regression_threshold = max(5, S // 20)  # At least 5 tokens back, or 5% of text
+                regressive_frames = (recent_max_positions < self.text_position - regression_threshold).sum()
+                
+                # If most recent frames are attending to old text, we're likely repeating
+                if regressive_frames >= recent_frames * 0.6:  # 60% of recent frames
+                    alignment_regression = True
+                    avg_regressive_pos = recent_max_positions[recent_max_positions < self.text_position - regression_threshold].float().mean()
+                    logger.warning(f"🔄 Alignment regression detected: attending to pos {avg_regressive_pos:.1f} while at {self.text_position} (regression threshold: {regression_threshold})")
+
+        # Combine all repetition checks
+        alignment_repetition = self.complete and (
+            (A[self.completed_at:, :-5].max(dim=1).values.sum() > repetition_threshold) or
+            alignment_regression
+        )
         
         # Track generated tokens for repetition detection
         if next_token is not None:
