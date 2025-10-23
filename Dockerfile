@@ -58,6 +58,8 @@ COPY README.md /app/
 COPY src /app/src
 #COPY requirements.txt /app/
 
+RUN pip install -r requirements-api.txt
+
 RUN pip install -e .
 
 #RUN pip install -r requirements.txt
