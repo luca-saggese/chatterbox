@@ -274,9 +274,17 @@ class ChatterboxMultilingualTTS:
             )
             # Extract only the conditional batch.
             speech_tokens = speech_tokens[0]
+            
+            # Debug: Check token sequence
+            print(f"🔍 Raw tokens generated: {speech_tokens.shape[0]} tokens")
+            print(f"🔍 First 10 tokens: {speech_tokens[:10].tolist()}")
+            print(f"🔍 Last 10 tokens: {speech_tokens[-10:].tolist()}")
 
             # TODO: output becomes 1D
+            speech_tokens_before = speech_tokens.clone()
             speech_tokens = drop_invalid_tokens(speech_tokens)
+            print(f"🔍 After drop_invalid_tokens: {speech_tokens.shape[0]} tokens (removed {speech_tokens_before.shape[0] - speech_tokens.shape[0]})")
+            
             speech_tokens = speech_tokens.to(self.device)
 
             wav, _ = self.s3gen.inference(

@@ -382,6 +382,8 @@ class T3(nn.Module):
             # Check for EOS token.
             if next_token.view(-1) == self.hp.stop_speech_token:
                 logger.info(f"✅ EOS token detected! Stopping generation at step {i+1}")
+                logger.info(f"   Total tokens generated: {len(predicted)}")
+                logger.info(f"   Last 5 tokens: {[t.item() for t in generated_ids[0, -5:]]}")
                 break
 
             # Get embedding for the new token with CORRECT positional embedding
