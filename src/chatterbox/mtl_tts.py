@@ -239,6 +239,76 @@ class ChatterboxMultilingualTTS:
         filtered_sentences = [s.strip() for s in sentences if s.strip()]
         return filtered_sentences
     
+    def _split_into_paragraphs(self, text: str) -> list[str]:
+        """
+        Split text into paragraphs (preserves more narrative context).
+        Paragraphs are separated by double newlines or multiple newlines.
+        """
+        # Split by double newline or more
+        paragraphs = re.split(r'\n\s*\n', text)
+        # Filter out empty strings and strip whitespace
+        filtered_paragraphs = [p.strip() for p in paragraphs if p.strip()]
+        return filtered_paragraphs
+    
+    def _split_into_chunks(self, text: str, max_sentences_per_chunk: int = 3) -> list[str]:
+        """
+        Split text into chunks of N sentences each.
+        This preserves context better than single sentences while keeping chunks manageable.
+        
+        Args:
+            text: Input text to split
+            max_sentences_per_chunk: Maximum number of sentences per chunk (default: 3)
+            
+        Returns:
+            List of text chunks, each containing up to max_sentences_per_chunk sentences
+        """
+        # First split into sentences
+        sentences = self._split_into_sentences(text)
+        
+        # Group sentences into chunks
+        chunks = []
+        current_chunk = []
+        
+        for sentence in sentences:
+            current_chunk.append(sentence)
+            
+            if len(current_chunk) >= max_sentences_per_chunk:
+                # Join sentences with period and space
+                chunks.append('. '.join(current_chunk) + '.')
+                current_chunk = []
+        
+        # Add remaining sentences if any
+        if current_chunk:
+            chunks.append('. '.join(current_chunk) + '.')
+        
+        return chunks
+    
+    def _estimate_token_count(self, text: str, language_id: str = "en") -> int:
+        """
+        Estimate the number of tokens a text will generate.
+        Rough approximation: ~50 tokens per sentence for speech generation.
+        
+        Args:
+            text: Input text
+            language_id: Language code
+            
+        Returns:
+            Estimated token count
+        """
+        # Count sentences as a rough proxy
+        num_sentences = len(self._split_into_sentences(text))
+        
+        # Average tokens per sentence varies by language and text complexity
+        # Italian/English narrative: ~40-60 tokens per sentence
+        # Short sentences: ~20-30 tokens
+        # Long complex sentences: ~80-100 tokens
+        avg_tokens_per_sentence = 50
+        
+        # Add some buffer for safety (20%)
+        estimated_tokens = int(num_sentences * avg_tokens_per_sentence * 1.2)
+        
+        return estimated_tokens
+    
     def _get_sentence_pause_duration(self, sentence: str, default_ms: int = 400) -> int:
         """
         Calculate natural pause duration after a sentence based on punctuation.
@@ -275,6 +345,7 @@ class ChatterboxMultilingualTTS:
         repetition_penalty=2.0,
         min_p=0.05,
         top_p=1.0,
+        max_new_tokens=1000,
     ):
         """Generate audio for a single sentence/text chunk."""
         # Norm and tokenize text
@@ -292,7 +363,7 @@ class ChatterboxMultilingualTTS:
             speech_tokens = self.t3.inference(
                 t3_cond=self.conds.t3,
                 text_tokens=text_tokens,
-                max_new_tokens=1000,  # TODO: use the value in config
+                max_new_tokens=max_new_tokens,
                 temperature=temperature,
                 cfg_weight=cfg_weight,
                 repetition_penalty=repetition_penalty,
@@ -326,7 +397,10 @@ class ChatterboxMultilingualTTS:
         min_p=0.05,
         top_p=1.0,
         auto_split=True,
+        split_mode="sentences",  # NEW: "sentences", "paragraphs", "chunks", or None
+        chunk_size=3,  # NEW: sentences per chunk when split_mode="chunks"
         sentence_pause_ms=400,
+        max_new_tokens=2000,  # NEW: configurable max tokens
     ):
         """
         Generate speech from text.
@@ -341,8 +415,15 @@ class ChatterboxMultilingualTTS:
             repetition_penalty: Penalty for repeated tokens
             min_p: Minimum probability threshold
             top_p: Nucleus sampling threshold
-            auto_split: If True, automatically split long text into sentences and concatenate
-            sentence_pause_ms: Duration of pause between sentences in milliseconds (default: 400ms, range: 200-800ms)
+            auto_split: If True, automatically split long text (uses split_mode)
+            split_mode: How to split text - "sentences" (default), "paragraphs", "chunks", or None
+                        - "sentences": Split by punctuation (good for short texts)
+                        - "paragraphs": Split by double newlines (preserves more context)
+                        - "chunks": Group N sentences together (best for narrative)
+                        - None: Generate entire text at once (use with caution for long texts)
+            chunk_size: Number of sentences per chunk when split_mode="chunks" (default: 3)
+            sentence_pause_ms: Duration of pause between segments in milliseconds (default: 400ms)
+            max_new_tokens: Maximum tokens to generate per segment (default: 2000)
         
         Returns:
             torch.Tensor: Generated audio waveform
@@ -369,12 +450,25 @@ class ChatterboxMultilingualTTS:
                 emotion_adv=exaggeration * torch.ones(1, 1, 1),
             ).to(device=self.device)
 
-        # Auto-split text into sentences if enabled
-        if auto_split:
-            sentences = self._split_into_sentences(text)
+        # Auto-split text into segments if enabled
+        if auto_split and split_mode:
+            # Choose splitting method based on split_mode
+            if split_mode == "sentences":
+                segments = self._split_into_sentences(text)
+                segment_type = "sentences"
+            elif split_mode == "paragraphs":
+                segments = self._split_into_paragraphs(text)
+                segment_type = "paragraphs"
+            elif split_mode == "chunks":
+                segments = self._split_into_chunks(text, max_sentences_per_chunk=chunk_size)
+                segment_type = f"{chunk_size}-sentence chunks"
+            else:
+                # Invalid split_mode, treat as no split
+                segments = [text]
+                segment_type = "full text"
             
-            # If only one sentence or text is short, generate directly
-            if len(sentences) <= 1:
+            # If only one segment or text is short, generate directly
+            if len(segments) <= 1:
                 return self._generate_single(
                     text=text,
                     language_id=language_id,
@@ -383,43 +477,53 @@ class ChatterboxMultilingualTTS:
                     repetition_penalty=repetition_penalty,
                     min_p=min_p,
                     top_p=top_p,
+                    max_new_tokens=max_new_tokens,
                 )
             
-            # Generate audio for each sentence and concatenate with pauses
-            print(f"Auto-splitting text into {len(sentences)} sentences...")
+            # Estimate tokens and warn if necessary
+            estimated_tokens = self._estimate_token_count(text, language_id)
+            print(f"Estimated total tokens: ~{estimated_tokens}")
+            if estimated_tokens > max_new_tokens and split_mode == "chunks":
+                print(f"⚠️  Warning: Text may exceed max_new_tokens ({max_new_tokens}). Consider increasing it or using smaller chunks.")
+            
+            # Generate audio for each segment and concatenate with pauses
+            print(f"Splitting text into {len(segments)} {segment_type}...")
             combined_audio = None
             
-            # Calculate pause duration based on natural speech patterns
-            # Research shows natural inter-sentence pauses are 300-600ms
-            # Default 400ms provides natural, comfortable pacing
+            # Calculate pause duration
             pause_duration_ms = self._get_sentence_pause_duration(text, default_ms=sentence_pause_ms)
             pause_samples = int(self.sr * pause_duration_ms / 1000)
             silence_pause = torch.zeros(1, pause_samples)
             
-            print(f"Using {pause_duration_ms}ms pause between sentences")
+            print(f"Using {pause_duration_ms}ms pause between segments")
             
-            for i, sentence in enumerate(sentences):
-                print(f"Generating sentence {i+1}/{len(sentences)}: {sentence[:50]}...")
+            for i, segment in enumerate(segments):
+                # Show preview of segment (truncate if too long)
+                preview = segment[:80] + "..." if len(segment) > 80 else segment
+                print(f"Generating segment {i+1}/{len(segments)}: {preview}")
+                
                 wav = self._generate_single(
-                    text=sentence,
+                    text=segment,
                     language_id=language_id,
                     cfg_weight=cfg_weight,
                     temperature=temperature,
                     repetition_penalty=repetition_penalty,
                     min_p=min_p,
                     top_p=top_p,
+                    max_new_tokens=max_new_tokens,
                 )
                 
                 if combined_audio is None:
                     combined_audio = wav
                 else:
-                    # Add a natural pause between sentences
+                    # Add a natural pause between segments
                     combined_audio = torch.cat((combined_audio, silence_pause, wav), dim=1)
             
             print("Audio generation complete.")
             return combined_audio
         else:
             # Generate without splitting
+            print(f"Generating entire text as one segment (max_new_tokens={max_new_tokens})")
             return self._generate_single(
                 text=text,
                 language_id=language_id,
@@ -428,4 +532,5 @@ class ChatterboxMultilingualTTS:
                 repetition_penalty=repetition_penalty,
                 min_p=min_p,
                 top_p=top_p,
+                max_new_tokens=max_new_tokens,
             )
