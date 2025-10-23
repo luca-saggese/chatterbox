@@ -14,6 +14,8 @@ import io
 import logging
 import urllib.request
 from pathlib import Path
+import hashlib
+import json
 
 from chatterbox.mtl_tts import ChatterboxMultilingualTTS, SUPPORTED_LANGUAGES
 
@@ -56,6 +58,10 @@ async def validation_exception_handler(request: Request, exc: RequestValidationE
 # Global model instance (loaded once at startup)
 model = None
 MODEL_DEVICE = "cuda" if torch.cuda.is_available() else "cpu"
+
+# Cache directory for generated audio
+CACHE_DIR = Path("audio_cache")
+CACHE_DIR.mkdir(exist_ok=True)
 
 # Language-specific default audio prompts (from multilingual_app.py)
 LANGUAGE_AUDIO_PROMPTS = {
@@ -130,6 +136,62 @@ class TTSRequest(BaseModel):
     max_new_tokens: int = Field(default=2000, ge=100, le=5000, description="Maximum tokens to generate per segment")
 
 
+def generate_cache_key(request: TTSRequest, audio_prompt_path: str) -> str:
+    """
+    Generate a unique hash key for caching based on all generation parameters.
+    Returns the hash string that can be used as a filename.
+    """
+    # Create a dictionary with all parameters that affect the output
+    cache_params = {
+        "text": request.text,
+        "language_id": request.language_id,
+        "audio_prompt_path": audio_prompt_path,
+        "cfg_weight": request.cfg_weight,
+        "exaggeration": request.exaggeration,
+        "temperature": request.temperature,
+        "repetition_penalty": request.repetition_penalty,
+        "min_p": request.min_p,
+        "top_p": request.top_p,
+        "auto_split": request.auto_split,
+        "split_mode": request.split_mode,
+        "chunk_size": request.chunk_size,
+        "target_chars": request.target_chars,
+        "sentence_pause_ms": request.sentence_pause_ms,
+        "max_new_tokens": request.max_new_tokens
+    }
+    
+    # Convert to JSON string (sorted keys for consistency)
+    params_str = json.dumps(cache_params, sort_keys=True)
+    
+    # Generate SHA256 hash
+    hash_obj = hashlib.sha256(params_str.encode('utf-8'))
+    return hash_obj.hexdigest()
+
+
+def get_cached_audio(cache_key: str) -> Optional[Path]:
+    """
+    Check if cached audio exists for the given cache key.
+    Returns the Path to the cached file if it exists, None otherwise.
+    """
+    cache_file = CACHE_DIR / f"{cache_key}.wav"
+    if cache_file.exists():
+        logger.info(f"✅ Cache HIT: {cache_key[:16]}... (file exists)")
+        return cache_file
+    logger.info(f"❌ Cache MISS: {cache_key[:16]}... (generating new audio)")
+    return None
+
+
+def save_to_cache(cache_key: str, wav_tensor: torch.Tensor, sample_rate: int) -> Path:
+    """
+    Save generated audio to cache.
+    Returns the Path to the saved file.
+    """
+    cache_file = CACHE_DIR / f"{cache_key}.wav"
+    ta.save(str(cache_file), wav_tensor, sample_rate, format="wav")
+    logger.info(f"💾 Saved to cache: {cache_key[:16]}... ({cache_file})")
+    return cache_file
+
+
 @app.on_event("startup")
 async def startup_event():
     """Load the TTS model on startup"""
@@ -168,7 +230,9 @@ async def root():
             "/generate-simple": "POST - Simple generation with query params",
             "/validate": "POST - Validate request without generating",
             "/health": "GET - Health check",
-            "/languages": "GET - List supported languages"
+            "/languages": "GET - List supported languages",
+            "/cache/stats": "GET - Cache statistics",
+            "/cache/clear": "DELETE - Clear cache"
         }
     }
 
@@ -219,6 +283,47 @@ async def list_languages():
     }
 
 
+@app.get("/cache/stats")
+async def cache_stats():
+    """Get cache statistics"""
+    cache_files = list(CACHE_DIR.glob("*.wav"))
+    total_size = sum(f.stat().st_size for f in cache_files)
+    
+    return {
+        "cache_dir": str(CACHE_DIR),
+        "total_files": len(cache_files),
+        "total_size_bytes": total_size,
+        "total_size_mb": round(total_size / (1024 * 1024), 2),
+        "cache_files": [
+            {
+                "hash": f.stem[:16] + "...",
+                "size_kb": round(f.stat().st_size / 1024, 2),
+                "created": f.stat().st_ctime
+            }
+            for f in sorted(cache_files, key=lambda x: x.stat().st_ctime, reverse=True)[:10]
+        ]
+    }
+
+
+@app.delete("/cache/clear")
+async def clear_cache():
+    """Clear all cached audio files"""
+    cache_files = list(CACHE_DIR.glob("*.wav"))
+    deleted_count = 0
+    deleted_size = 0
+    
+    for f in cache_files:
+        deleted_size += f.stat().st_size
+        f.unlink()
+        deleted_count += 1
+    
+    return {
+        "status": "success",
+        "deleted_files": deleted_count,
+        "freed_space_mb": round(deleted_size / (1024 * 1024), 2)
+    }
+
+
 @app.post("/generate")
 async def generate_speech(request: TTSRequest):
     """
@@ -252,6 +357,31 @@ async def generate_speech(request: TTSRequest):
             detail=f"Audio prompt file not found: {audio_prompt_path}"
         )
     
+    # Generate cache key based on all parameters
+    cache_key = generate_cache_key(request, audio_prompt_path)
+    logger.info(f"🔑 Cache key: {cache_key[:16]}...")
+    
+    # Check if cached audio exists
+    cached_file = get_cached_audio(cache_key)
+    
+    if cached_file:
+        # Return cached file directly
+        logger.info(f"📤 Returning cached audio from {cached_file}")
+        
+        # Read the cached WAV file
+        with open(cached_file, 'rb') as f:
+            audio_data = f.read()
+        
+        # Return as streaming response
+        return StreamingResponse(
+            io.BytesIO(audio_data),
+            media_type="audio/wav",
+            headers={
+                "Content-Disposition": "attachment; filename=generated_speech.wav",
+                "X-Cache-Status": "HIT"
+            }
+        )
+    
     try:
         logger.info(f"Generating speech for text: '{request.text[:50]}...' in language: {request.language_id}")
         logger.info(f"Split mode: {request.split_mode}, target_chars: {request.target_chars if request.split_mode == 'adaptive' else 'N/A'}")
@@ -275,6 +405,9 @@ async def generate_speech(request: TTSRequest):
             max_new_tokens=request.max_new_tokens
         )
         
+        # Save to cache
+        save_to_cache(cache_key, wav, model.sr)
+        
         # Create an in-memory buffer to store the WAV file
         buffer = io.BytesIO()
         
@@ -291,7 +424,8 @@ async def generate_speech(request: TTSRequest):
             buffer,
             media_type="audio/wav",
             headers={
-                "Content-Disposition": "attachment; filename=generated_speech.wav"
+                "Content-Disposition": "attachment; filename=generated_speech.wav",
+                "X-Cache-Status": "MISS"
             }
         )
         
