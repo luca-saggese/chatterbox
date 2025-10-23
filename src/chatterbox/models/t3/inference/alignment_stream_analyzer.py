@@ -137,14 +137,15 @@ class AlignmentStreamAnalyzer:
         last_text_token_duration = A[15:, -3:].sum()
 
         # Activations for the final token that last too long are likely hallucinations.
-        # FIXED: Be more lenient with long sequences to prevent premature acceleration
-        # Increase threshold proportionally with sequence length to avoid false positives
-        long_tail_threshold = min(10, 5 + T // 200)  # Scale threshold: 5 frames base, +1 per 200 frames
+        # We use a moderate threshold here since post-processing will trim extra frames
+        # Each frame is ~20ms, so 8 frames = 160ms
+        # This allows natural endings while still catching runaway generation
+        long_tail_threshold = 8  # Allow up to 160ms before forcing EOS
         long_tail = self.complete and (A[self.completed_at:, -3:].sum(dim=0).max() >= long_tail_threshold)
 
         # If there are activations in previous tokens after generation has completed, assume this is a repetition error.
-        # FIXED: Also scale this threshold for long sequences
-        repetition_threshold = min(10, 5 + T // 200)
+        # Keep moderate threshold since trimming will clean up minor issues
+        repetition_threshold = 5  # Allow some repetition before forcing
         alignment_repetition = self.complete and (A[self.completed_at:, :-5].max(dim=1).values.sum() > repetition_threshold)
         
         # Track generated tokens for repetition detection
@@ -178,8 +179,8 @@ class AlignmentStreamAnalyzer:
         # If a bad ending is detected, force emit EOS by modifying logits
         # NOTE: this means logits may be inconsistent with latents!
         if long_tail or alignment_repetition or token_repetition:
-            logger.warning(f"🚨 forcing EOS token at frame {self.curr_frame_pos}, {long_tail=}, {alignment_repetition=}, {token_repetition=}")
-            logger.warning(f"   Text position: {self.text_position}/{S}, Complete: {self.complete}, Completed at: {self.completed_at}")
+            extra_frames = self.curr_frame_pos - self.completed_at if self.completed_at else 0
+            logger.warning(f"⚠️  Forcing EOS at frame {self.curr_frame_pos} ({extra_frames} frames after completion) - {long_tail=}, {alignment_repetition=}, {token_repetition=}")
             # (±2**15 is safe for all dtypes >= 16bit)
             logits = -(2**15) * torch.ones_like(logits)
             logits[..., self.eos_idx] = 2**15

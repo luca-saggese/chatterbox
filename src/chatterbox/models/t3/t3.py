@@ -382,8 +382,6 @@ class T3(nn.Module):
             # Check for EOS token.
             if next_token.view(-1) == self.hp.stop_speech_token:
                 logger.info(f"✅ EOS token detected! Stopping generation at step {i+1}")
-                logger.info(f"   Total tokens generated: {len(predicted)}")
-                logger.info(f"   Last 5 tokens: {[t.item() for t in generated_ids[0, -5:]]}")
                 break
 
             # Get embedding for the new token with CORRECT positional embedding
@@ -410,4 +408,18 @@ class T3(nn.Module):
 
         # Concatenate all predicted tokens along the sequence dimension.
         predicted_tokens = torch.cat(predicted, dim=1)  # shape: (B, num_tokens)
+        
+        # If alignment analyzer detected completion, trim extra tokens after that point
+        if self.patched_model.alignment_stream_analyzer is not None:
+            analyzer = self.patched_model.alignment_stream_analyzer
+            if analyzer.completed_at is not None and analyzer.completed_at > 0:
+                # Calculate how many tokens to keep
+                # Add a small buffer (e.g., 5 frames = 100ms) after completion for natural ending
+                buffer_frames = 5
+                max_keep_frames = analyzer.completed_at + buffer_frames
+                
+                if predicted_tokens.shape[1] > max_keep_frames:
+                    logger.info(f"🎯 Trimming extra tokens: keeping {max_keep_frames} frames out of {predicted_tokens.shape[1]} (removed {predicted_tokens.shape[1] - max_keep_frames} frames)")
+                    predicted_tokens = predicted_tokens[:, :max_keep_frames]
+        
         return predicted_tokens
