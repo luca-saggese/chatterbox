@@ -131,7 +131,7 @@ class TTSRequest(BaseModel):
     auto_split: bool = Field(default=True, description="Automatically split text into sentences")
     split_mode: str = Field(default="adaptive", description="Split mode: 'adaptive' (dynamic by chars), 'sentences', 'paragraphs', 'chunks', or 'none'")
     chunk_size: int = Field(default=3, ge=1, le=10, description="Sentences per chunk when split_mode='chunks'")
-    target_chars: int = Field(default=800, ge=200, le=2000, description="Target characters per chunk when split_mode='adaptive'")
+    target_chars: int = Field(default=400, ge=200, le=2000, description="Target characters per chunk when split_mode='adaptive'")
     sentence_pause_ms: int = Field(default=400, ge=0, le=2000, description="Pause duration between sentences in milliseconds")
     max_new_tokens: int = Field(default=2000, ge=100, le=5000, description="Maximum tokens to generate per segment")
 
