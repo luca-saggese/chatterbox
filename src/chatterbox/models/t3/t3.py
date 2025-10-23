@@ -409,17 +409,30 @@ class T3(nn.Module):
         # Concatenate all predicted tokens along the sequence dimension.
         predicted_tokens = torch.cat(predicted, dim=1)  # shape: (B, num_tokens)
         
+        # Debug: Check if analyzer exists
+        logger.info(f"🔍 Checking analyzer: patched_model exists={hasattr(self, 'patched_model')}, analyzer={getattr(self.patched_model, 'alignment_stream_analyzer', None) if hasattr(self, 'patched_model') else 'NO PATCHED MODEL'}")
+        
         # If alignment analyzer detected completion, trim extra tokens after that point
-        if self.patched_model.alignment_stream_analyzer is not None:
+        if hasattr(self, 'patched_model') and self.patched_model.alignment_stream_analyzer is not None:
             analyzer = self.patched_model.alignment_stream_analyzer
+            
+            # Debug: Always log analyzer state
+            logger.info(f"📊 Analyzer state: completed_at={analyzer.completed_at}, curr_frame_pos={analyzer.curr_frame_pos}, total_tokens={predicted_tokens.shape[1]}")
+            
             if analyzer.completed_at is not None and analyzer.completed_at > 0:
                 # Calculate how many tokens to keep
-                # Add a small buffer (e.g., 5 frames = 100ms) after completion for natural ending
-                buffer_frames = 5
+                # Increase buffer to 10 frames (200ms) to prevent cutting off words
+                # This allows natural word endings and trailing consonants
+                buffer_frames = 10
                 max_keep_frames = analyzer.completed_at + buffer_frames
                 
                 if predicted_tokens.shape[1] > max_keep_frames:
-                    logger.info(f"🎯 Trimming extra tokens: keeping {max_keep_frames} frames out of {predicted_tokens.shape[1]} (removed {predicted_tokens.shape[1] - max_keep_frames} frames)")
+                    removed_frames = predicted_tokens.shape[1] - max_keep_frames
+                    logger.info(f"✂️  Trimming {removed_frames} extra frames: keeping {max_keep_frames} out of {predicted_tokens.shape[1]}")
                     predicted_tokens = predicted_tokens[:, :max_keep_frames]
+                else:
+                    logger.info(f"✅ No trimming needed: {predicted_tokens.shape[1]} tokens within {max_keep_frames} frame limit")
+            else:
+                logger.warning(f"⚠️  Analyzer did not detect completion point (completed_at={analyzer.completed_at})")
         
         return predicted_tokens

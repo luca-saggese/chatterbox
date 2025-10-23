@@ -130,7 +130,10 @@ class AlignmentStreamAnalyzer:
         # Is generation likely complete?
         self.complete = self.complete or self.text_position >= S - 3
         if self.complete and self.completed_at is None:
-            self.completed_at = T
+            # Use curr_frame_pos instead of T because T is the alignment matrix size
+            # which includes the initial BOS chunk, while curr_frame_pos tracks actual tokens
+            self.completed_at = self.curr_frame_pos
+            logger.info(f"📍 Text completion detected at token {self.curr_frame_pos} (text_position: {self.text_position}/{S}, alignment matrix rows: {T})")
 
         # NOTE: EOS rarely assigned activations, and second-last token is often punctuation, so use last 3 tokens.
         # NOTE: due to the false-start behaviour, we need to make sure we skip activations for the first few tokens.
