@@ -193,7 +193,7 @@ def generate_tts_audio(
     maintains the prosody, tone, and vocal qualities of the reference speaker, or uses default voice if no reference is provided.
 
     Args:
-        text_input (str): The text to synthesize into speech (maximum 300 characters)
+        text_input (str): The text to synthesize into speech
         language_id (str): The language code for synthesis (eg. en, fr, de, es, it, pt, hi)
         audio_prompt_path_input (str, optional): File path or URL to the reference audio file that defines the target voice style. Defaults to None.
         exaggeration_input (float, optional): Controls speech expressiveness (0.25-2.0, neutral=0.5, extreme values may be unstable). Defaults to 0.5.
@@ -229,7 +229,7 @@ def generate_tts_audio(
         print("No audio prompt provided; using default voice.")
         
     wav = current_model.generate(
-        text_input[:300],  # Truncate text to max chars
+        text_input,
         language_id=language_id,
         **generate_kwargs
     )
@@ -251,7 +251,7 @@ with gr.Blocks() as demo:
             initial_lang = "fr"
             text = gr.Textbox(
                 value=default_text_for_ui(initial_lang),
-                label="Text to synthesize (max chars 300)",
+                label="Text to synthesize",
                 max_lines=5
             )
             
@@ -314,4 +314,5 @@ with gr.Blocks() as demo:
         outputs=[audio_output],
     )
 
-demo.launch(mcp_server=True, share=True)
+demo.launch(mcp_server=True, server_name="0.0.0.0", server_port=8080, share=True)
+
