@@ -129,7 +129,7 @@ class TTSRequest(BaseModel):
     min_p: float = Field(default=0.05, ge=0.0, le=1.0, description="Minimum probability threshold (0.0-1.0)")
     top_p: float = Field(default=0.95, ge=0.0, le=1.0, description="Top-p (nucleus) sampling (0.0-1.0)")
     auto_split: bool = Field(default=True, description="Automatically split text into sentences")
-    split_mode: str = Field(default="adaptive", description="Split mode: 'adaptive' (dynamic by chars), 'sentences', 'paragraphs', 'chunks', or 'none'")
+    split_mode: str = Field(default="sentences", description="Split mode: 'adaptive' (dynamic by chars), 'sentences', 'paragraphs', 'chunks', or 'none'")
     chunk_size: int = Field(default=3, ge=1, le=10, description="Sentences per chunk when split_mode='chunks'")
     target_chars: int = Field(default=400, ge=200, le=2000, description="Target characters per chunk when split_mode='adaptive'")
     sentence_pause_ms: int = Field(default=400, ge=0, le=2000, description="Pause duration between sentences in milliseconds")
